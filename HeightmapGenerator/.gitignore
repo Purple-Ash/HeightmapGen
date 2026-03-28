@@ -1,0 +1,14 @@
+*.slo
+*.lo
+*.o
+*.obj
+
+
+*.so
+*.dylib
+*.dll
+
+.idea
+
+/cmake-build-debug
+/cmake-build-release
