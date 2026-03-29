@@ -1,6 +1,32 @@
 #include "HeightmapGenAPI.h"
 #include <gtest/gtest.h>
 
+#ifdef __linux__
+#include <dlfcn.h>
+#include <string>
+
+TEST(CoreTests, DynamicLoad)
+{
+	void* lib = dlopen("libHeightmapGen.so", RTLD_NOW);
+	EXPECT_NE(lib, nullptr);
+
+	void* symbol = dlsym(lib, "smokeTest");
+	EXPECT_NE(symbol, nullptr);
+
+	auto function = reinterpret_cast<const char*(*)(const char*)>(symbol);
+
+	const char* hw = "HelloWorld\n";
+	EXPECT_EQ(function(hw),hw);
+
+	EXPECT_NE(dlsym(lib, "getNewContext"), nullptr);
+	EXPECT_NE(dlsym(lib, "closeContext"), nullptr);
+	EXPECT_NE(dlsym(lib, "setGenerator"), nullptr);
+	EXPECT_NE(dlsym(lib, "generateRegion"), nullptr);
+
+	EXPECT_EQ(dlclose(lib), 0);
+}
+#endif
+
 TEST(CoreTests, HelloWorld)
 {
 	const std::string hw = "HelloWorld\n";
