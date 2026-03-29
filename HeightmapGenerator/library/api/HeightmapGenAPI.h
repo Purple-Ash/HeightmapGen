@@ -3,7 +3,7 @@
 #include <unordered_map>
 
 #ifdef _WIN32
-#ifdef BUILDING_HG_DLL
+#ifdef HeightmapGen_EXPORTS
 #define HG_API __declspec(dllexport)
 #else
 #define HG_API __declspec(dllimport)
