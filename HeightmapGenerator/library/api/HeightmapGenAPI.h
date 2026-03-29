@@ -16,7 +16,7 @@
 class HGContext;
 typedef HGContext* HGContextHandle;
 
-enum GeneratorType {
+enum struct GeneratorType {
 	empty,
 	random,
 	generatorTypeSize
@@ -37,8 +37,3 @@ extern "C" {
 	bool generateRegion(HGContextHandle ctx, int32_t x, int32_t y);
 	bool getRegion(HGContextHandle ctx, int32_t x, int32_t y, Chunk*& data);
 }
-
-
-
-
-
