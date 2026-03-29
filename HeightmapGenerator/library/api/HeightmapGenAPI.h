@@ -12,9 +12,8 @@
 #define HG_API
 #endif
 
-
 class HGContext;
-typedef HGContext* HGContextHandle;
+using HGContextHandle = HGContext*;
 
 enum struct GeneratorType {
 	empty = 0,
