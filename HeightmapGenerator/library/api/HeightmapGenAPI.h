@@ -17,8 +17,8 @@ class HGContext;
 typedef HGContext* HGContextHandle;
 
 enum struct GeneratorType {
-	empty,
-	random,
+	empty = 0,
+	random = 1,
 	generatorTypeSize
 };
 
@@ -26,14 +26,14 @@ struct Chunk;
 struct Vec2Int;
 
 extern "C" {
-	const char* smokeTest(const char* data);
+	HG_API const char* smokeTest(const char* data);
 
-	HGContextHandle getNewContext();
-	bool closeContext(HGContextHandle ctx);
+	HG_API HGContextHandle getNewContext();
+	HG_API bool closeContext(HGContextHandle ctx);
 
-	bool setRegionDimensions(HGContextHandle ctx, int32_t sizeX, int32_t sizeY);
-	bool setGenerator(HGContextHandle ctx, GeneratorType generator_type, float scaleHorizontal, float scaleVertical);
+	HG_API bool setRegionDimensions(HGContextHandle ctx, int32_t sizeX, int32_t sizeY);
+	HG_API bool setGenerator(HGContextHandle ctx, GeneratorType generator_type, float scaleHorizontal, float scaleVertical);
 
-	bool generateRegion(HGContextHandle ctx, int32_t x, int32_t y);
-	bool getRegion(HGContextHandle ctx, int32_t x, int32_t y, Chunk*& data);
+	HG_API bool generateRegion(HGContextHandle ctx, int32_t x, int32_t y);
+	HG_API bool getRegion(HGContextHandle ctx, int32_t x, int32_t y, Chunk*& data);
 }
