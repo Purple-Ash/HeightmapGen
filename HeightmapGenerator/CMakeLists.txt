@@ -20,6 +20,7 @@ file(GLOB_RECURSE  TEST_SOURCES tests/*.cpp)
 add_library(HeightmapGen SHARED
     ${LIBRARY_SOURCES}
         library/core/Helpers.h
+        library/core/PerlinGenerator.cpp
 )
 
 target_include_directories(HeightmapGen

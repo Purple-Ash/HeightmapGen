@@ -26,9 +26,19 @@ HG_API bool setRegionDimensions(HGContextHandle ctx, int32_t sizeX, int32_t size
 	return ctx->setRegionDimensions(Vec2Int(sizeX, sizeY));
 }
 
-HG_API bool setGenerator(HGContextHandle ctx, GeneratorType generator_type, float scaleHorizontal, float scaleVertical)
+HG_API bool setVerticalAmplitude(HGContextHandle ctx, float multiplier)
 {
-	return ctx->setGenerator(generator_type, scaleHorizontal, scaleVertical);
+	return ctx->setVerticalAmplitude(multiplier);
+}
+
+HG_API bool setResolution(HGContextHandle ctx, int32_t resolution)
+{
+	return ctx->setResolution(resolution);
+}
+
+HG_API bool setGenerator(HGContextHandle ctx, GeneratorType generator_type, float scaleHorizontal)
+{
+	return ctx->setGenerator(generator_type, scaleHorizontal);
 }
 
 HG_API bool generateRegion(HGContextHandle ctx, int32_t x, int32_t y)

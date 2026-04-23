@@ -16,9 +16,10 @@ struct Chunk
 {
 	float* data;
 	Vec2Int size;
+	int32_t resoltuion;
 
 	Chunk() = default;
-	Chunk(Vec2Int size);
+	Chunk(Vec2Int dimensions, int32_t resolution);
 	Chunk(Chunk&& other) noexcept;
 	Chunk& operator=(Chunk&& other) noexcept;
 	~Chunk();
@@ -40,12 +41,16 @@ class HGContext
 	Generator* generator = nullptr;
 	std::unordered_map<Vec2Int, Chunk> chunks;
 	Vec2Int chunkDimensions = {16,16};
+	int32_t resolution = 1;
+	float amplitude = 1;
 
 public:
 	bool generateRegion(Vec2Int position);
 	bool getRegion(Vec2Int position, Chunk*& data);
-	bool setGenerator(GeneratorType type, float scaleHorizontal, float scaleVertical);
+	bool setGenerator(GeneratorType type, float scaleHorizontal);
+	bool setResolution(int32_t resolution);
 	bool setRegionDimensions(Vec2Int dimensions);
+	bool setVerticalAmplitude(float amplitude);
 	~HGContext();
 };
 

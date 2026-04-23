@@ -6,10 +6,11 @@ Vec2Int::Vec2Int(int32_t x, int32_t y)
 	this->y = y;
 }
 
-Chunk::Chunk(Vec2Int size)
+Chunk::Chunk(Vec2Int size, int32_t resolution)
 {
 	this->size = size;
-	data = new float[size.x * size.y];
+	resoltuion = resolution;
+	data = new float[(size.x+1)*resolution * (size.y+1)*resolution];
 }
 
 Chunk::Chunk(Chunk&& other) noexcept: data(other.data), size(other.size) {
@@ -36,20 +37,24 @@ bool HGContext::generateRegion(Vec2Int position)
 	if (generator == nullptr) return false;
 	if (!chunks.contains(position))
 	{
-		auto [it, inserted] = chunks.try_emplace(position, chunkDimensions);
+		auto [it, inserted] = chunks.try_emplace(position, chunkDimensions, resolution);
 
 		if (!inserted) return false;
 
 		Chunk& newChunk = it->second;
 
-		for (int i = 0; i < chunkDimensions.x; i++)
+		int max_x = (chunkDimensions.x+1)*resolution;
+		int max_y = (chunkDimensions.y+1)*resolution;
+		for (int i = 0; i < max_x; i++)
 		{
-			for (int j = 0; j < chunkDimensions.y; j++)
+			for (int j = 0; j < max_y; j++)
 			{
-				newChunk.data[i + j * chunkDimensions.x] = generator->getHeight(i, j);
+				newChunk.data[i + j * max_x] = generator->getHeight(
+					static_cast<float>(i)/static_cast<float>(resolution),
+					static_cast<float>(j)/static_cast<float>(resolution)
+					);
 			}
 		}
-
 		return true;
 	}
 	return false;
@@ -66,7 +71,24 @@ bool HGContext::getRegion(Vec2Int position, Chunk*& data)
 	return false;
 }
 
-bool HGContext::setGenerator(GeneratorType type, float scale_horizontal, float scale_vertical)
+
+bool HGContext::setVerticalAmplitude(float amplitude)
+{
+	this->amplitude = amplitude;
+	return true;
+}
+
+bool HGContext::setResolution(int32_t resolution)
+{
+	if (resolution > 0)
+	{
+		this->resolution = resolution;
+		return true;
+	}
+	return false;
+}
+
+bool HGContext::setGenerator(GeneratorType type, float scale_horizontal)
 {
 	switch (type)
 	{
@@ -74,7 +96,10 @@ bool HGContext::setGenerator(GeneratorType type, float scale_horizontal, float s
 			return false;
 			break;
 		case GeneratorType::random:
-			generator = new RandomGenerator(scale_horizontal, scale_vertical);
+			generator = new RandomGenerator(scale_horizontal, amplitude);
+			break;
+		case GeneratorType::perlin:
+			generator = new PerlinGenerator(scale_horizontal, amplitude);
 			break;
 		default:
 			return false;

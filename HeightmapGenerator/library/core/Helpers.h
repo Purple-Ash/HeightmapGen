@@ -9,3 +9,4 @@ inline float randomFloatBetween(float min, float max)
 	std::uniform_real_distribution<float> dis(min, max);
 	return dis(gen);
 }
+

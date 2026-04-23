@@ -4,44 +4,79 @@ using UnityEngine;
 
 public class TerrainGen : MonoBehaviour
 {
-    [SerializeField] GameObject defaultCube;
+    [SerializeField] GameObject chunkObject;
     IntPtr context;
+    [SerializeField] Vector2Int chunkDimensions;
+    [SerializeField] Vector2Int chunkCount;
+    [SerializeField] int resolution;
+    [SerializeField] float scale;
+    [SerializeField] float amplitude;
 
     void Start()
     {
         context = HeightmapGenAPI.getNewContext();
 
-        if(!HeightmapGenAPI.setGenerator(context, HeightmapGenAPI.GeneratorType.random, 1.0f, 1.0f))
+        if (!HeightmapGenAPI.setGenerator(context, HeightmapGenAPI.GeneratorType.perlin, scale / 100f))
         {
             Debug.Log("Couldnt set generator");
             return;
         }
 
-        if (!HeightmapGenAPI.generateRegion(context, 1, 1))
+        if (!HeightmapGenAPI.setRegionDimensions(context, chunkDimensions.x, chunkDimensions.y))
         {
-            Debug.Log("Couldnt generate region");
+            Debug.Log("Couldnt set dimensions");
             return;
         }
 
-        if (!HeightmapGenAPI.getRegion(context, 1, 1, out IntPtr chunkPtr))
+        if (!HeightmapGenAPI.setResolution(context, resolution))
         {
-            Debug.Log("Couldnt get region");
+            Debug.Log("Couldnt set resolution");
             return;
         }
 
-        var chunk = Marshal.PtrToStructure<HeightmapGenAPI.Chunk>(chunkPtr);
-        Debug.Log($"Chunk Size: {chunk.size.x}x{chunk.size.y}");
-
-        int length = chunk.size.x * chunk.size.y;
-        float[] heightData = new float[length];
-        Marshal.Copy(chunk.data, heightData, 0, length);
-        for (int i = 0; i < chunk.size.x; i++)
+        if (!HeightmapGenAPI.setVerticalAmplitude(context, amplitude))
         {
-            for(int j = 0; j < chunk.size.y; j++)
+            Debug.Log("Couldnt set amplitude");
+            return;
+        }
+
+        for (int i = 0; i < chunkCount.x; i++)
+        {
+            for (int j = 0; j < chunkCount.y; j++)
             {
-                Instantiate(defaultCube, new Vector3(i, heightData[i + j * chunk.size.x],j), Quaternion.identity);
+                if (!HeightmapGenAPI.generateRegion(context, i, j))
+                {
+                    Debug.Log("Couldnt generate region");
+                    return;
+                }
+
+                if (!HeightmapGenAPI.getRegion(context, i, j, out IntPtr chunkPtr))
+                {
+                    Debug.Log("Couldnt get region");
+                    return;
+                }
+
+                var chunk = Marshal.PtrToStructure<HeightmapGenAPI.Chunk>(chunkPtr);
+                Debug.Log($"Chunk Size: {chunk.size.x}x{chunk.size.y}");
+
+                int length = (chunk.size.x + 1) * (chunk.size.y + 1) * resolution * resolution;
+                float[] heightData = new float[length];
+                Marshal.Copy(chunk.data, heightData, 0, length);
+                GameObject instance = Instantiate(
+                    chunkObject, 
+                    new Vector3(chunkDimensions.x * i, 0, chunkDimensions.y * j), 
+                    Quaternion.identity
+                );
+
+                instance.GetComponent<Chunk>().generateMesh(
+                    heightData, 
+                    chunk.size.x, 
+                    chunk.size.y, 
+                    resolution,amplitude
+                );
             }
         }
+
     }
 
     private void OnDestroy()
