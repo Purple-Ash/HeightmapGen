@@ -16,10 +16,10 @@ struct Chunk
 {
 	float* data;
 	Vec2Int size;
-	int32_t resoltuion;
+	float amplitude;
 
 	Chunk() = default;
-	Chunk(Vec2Int dimensions, int32_t resolution);
+	Chunk(Vec2Int dimensions, int32_t resolution, float amplitude);
 	Chunk(Chunk&& other) noexcept;
 	Chunk& operator=(Chunk&& other) noexcept;
 	~Chunk();

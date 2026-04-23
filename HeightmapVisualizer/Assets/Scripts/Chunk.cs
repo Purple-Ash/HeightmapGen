@@ -11,7 +11,7 @@ public class Chunk : MonoBehaviour
 
     Color colorByHeight(Vector3 vertex)
     {
-        return new Color(vertex.y, 1.0f-vertex.y, 0.0f,1.0f);
+        return new Color(vertex.y/2, 1.0f-vertex.y/2, 0.0f,1.0f);
     }
 
     Color colorVerticies(Vector3 vertex,ColoringMode mode, float amplitude)

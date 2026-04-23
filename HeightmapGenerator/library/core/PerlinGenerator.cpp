@@ -61,6 +61,7 @@ bool PerlinGenerator::isDeterministic()
 	return true;
 }
 
+
 float PerlinGenerator::getHeight(float posX, float posY)
 {
 	float x = posX * scaleHorizontal;
@@ -85,4 +86,27 @@ float PerlinGenerator::getHeight(float posX, float posY)
 	);
 
 	return (res + 1.0f) * 0.5f * amplitude;
+}
+
+
+BrownianPerlinGenerator::BrownianPerlinGenerator(float scaleHorizontal, float amplitude) : Generator(scaleHorizontal, amplitude)
+{
+	octaves.emplace_back(scaleHorizontal, amplitude);
+	octaves.emplace_back(scaleHorizontal * 2, amplitude / 2);
+	octaves.emplace_back(scaleHorizontal * 4, amplitude / 4);
+	octaves.emplace_back(scaleHorizontal * 8, amplitude / 8);
+}
+
+float BrownianPerlinGenerator::getHeight(float posX, float posY)
+{
+	float height = octaves[0].getHeight(posX, posY);
+	height += octaves[1].getHeight(posX, posY);
+	height += octaves[2].getHeight(posX, posY);
+	height += octaves[3].getHeight(posX, posY);
+	return height;
+}
+
+bool BrownianPerlinGenerator::isDeterministic()
+{
+	return true;
 }

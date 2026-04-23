@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <vector>
 
 /**
  * Parent class for all other classes that will implement terrain generation
@@ -31,6 +32,15 @@ class PerlinGenerator final : public Generator
 {
 public:
 	PerlinGenerator(float scaleHorizontal, float amplitude);
+	float getHeight(float posX, float posY) override;
+	bool isDeterministic() override;
+};
+
+class BrownianPerlinGenerator final : public Generator
+{
+	std::vector<PerlinGenerator> octaves;
+public:
+	BrownianPerlinGenerator(float scaleHorizontal, float amplitude);
 	float getHeight(float posX, float posY) override;
 	bool isDeterministic() override;
 };

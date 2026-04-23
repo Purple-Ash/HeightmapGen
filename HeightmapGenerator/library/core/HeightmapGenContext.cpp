@@ -6,11 +6,11 @@ Vec2Int::Vec2Int(int32_t x, int32_t y)
 	this->y = y;
 }
 
-Chunk::Chunk(Vec2Int size, int32_t resolution)
+Chunk::Chunk(Vec2Int size, int32_t resolution, float amplitude)
 {
 	this->size = size;
-	resoltuion = resolution;
 	data = new float[(size.x+1)*resolution * (size.y+1)*resolution];
+	this-> amplitude = amplitude;
 }
 
 Chunk::Chunk(Chunk&& other) noexcept: data(other.data), size(other.size) {
@@ -37,7 +37,12 @@ bool HGContext::generateRegion(Vec2Int position)
 	if (generator == nullptr) return false;
 	if (!chunks.contains(position))
 	{
-		auto [it, inserted] = chunks.try_emplace(position, chunkDimensions, resolution);
+		auto [it, inserted] = chunks.try_emplace(
+			position,
+			chunkDimensions,
+			resolution,
+			amplitude
+		);
 
 		if (!inserted) return false;
 
@@ -100,6 +105,9 @@ bool HGContext::setGenerator(GeneratorType type, float scale_horizontal)
 			break;
 		case GeneratorType::perlin:
 			generator = new PerlinGenerator(scale_horizontal, amplitude);
+			break;
+		case GeneratorType::brownian_perlin:
+			generator = new BrownianPerlinGenerator(scale_horizontal, amplitude);
 			break;
 		default:
 			return false;

@@ -59,10 +59,8 @@ Shader "Custom/VertexColorVF"
             fixed4 frag(v2f i) : SV_Target
             {
                 fixed4 tex = tex2D(_MainTex, i.uv);
-
-                // Combine texture, material color, and vertex color
                 fixed4 col = tex * _Color * i.color;
-
+                col *= (col +  max(dot(i.worldNormal, float3(1,1,1)),0.0) )/2.0;
                 return col;
             }
 

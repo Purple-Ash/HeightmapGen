@@ -583,7 +583,7 @@ MonoBehaviour:
   chunkCount: {x: 1, y: 1}
   resolution: 5
   scale: 13.6
-  amplitude: 1
+  amplitude: 5
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

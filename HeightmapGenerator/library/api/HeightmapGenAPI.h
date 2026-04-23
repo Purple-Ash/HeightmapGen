@@ -19,6 +19,7 @@ enum struct GeneratorType {
 	empty = 0,
 	random = 1,
 	perlin = 2,
+	brownian_perlin = 3,
 	generatorTypeSize
 };
 

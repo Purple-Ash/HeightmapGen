@@ -16,15 +16,15 @@ public class TerrainGen : MonoBehaviour
     {
         context = HeightmapGenAPI.getNewContext();
 
-        if (!HeightmapGenAPI.setGenerator(context, HeightmapGenAPI.GeneratorType.perlin, scale / 100f))
-        {
-            Debug.Log("Couldnt set generator");
-            return;
-        }
-
         if (!HeightmapGenAPI.setRegionDimensions(context, chunkDimensions.x, chunkDimensions.y))
         {
             Debug.Log("Couldnt set dimensions");
+            return;
+        }
+
+        if (!HeightmapGenAPI.setVerticalAmplitude(context, amplitude))
+        {
+            Debug.Log("Couldnt set amplitude");
             return;
         }
 
@@ -34,9 +34,9 @@ public class TerrainGen : MonoBehaviour
             return;
         }
 
-        if (!HeightmapGenAPI.setVerticalAmplitude(context, amplitude))
+        if (!HeightmapGenAPI.setGenerator(context, HeightmapGenAPI.GeneratorType.brownian_perlin, scale / 100f))
         {
-            Debug.Log("Couldnt set amplitude");
+            Debug.Log("Couldnt set generator");
             return;
         }
 

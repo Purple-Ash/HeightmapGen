@@ -24,7 +24,8 @@ public static class HeightmapGenAPI
         empty = 0,
         random = 1,
         perlin = 2,
-        generatorTypeSize = 3
+        brownian_perlin = 3,
+        generatorTypeSize = 4
     }
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
