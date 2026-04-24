@@ -59,7 +59,7 @@ public class TerrainGen : MonoBehaviour
                 var chunk = Marshal.PtrToStructure<HeightmapGenAPI.Chunk>(chunkPtr);
                 Debug.Log($"Chunk Size: {chunk.size.x}x{chunk.size.y}");
 
-                int length = (chunk.size.x + 1) * (chunk.size.y + 1) * resolution * resolution;
+                int length = (chunk.size.x * resolution + 1) * (chunk.size.y * resolution + 1);
                 float[] heightData = new float[length];
                 Marshal.Copy(chunk.data, heightData, 0, length);
                 GameObject instance = Instantiate(

@@ -18,7 +18,7 @@ TEST(CoreTests, DynamicLoad)
 	auto function = reinterpret_cast<const char*(*)(const char*)>(symbol);
 
 	const char* hw = "HelloWorld\n";
-	EXPECT_EQ(function(hw),hw);
+	EXPECT_EQ(function(hw), hw);
 
 	EXPECT_NE(dlsym(lib, "getNewContext"), nullptr);
 	EXPECT_NE(dlsym(lib, "closeContext"), nullptr);
@@ -32,7 +32,7 @@ TEST(CoreTests, DynamicLoad)
 TEST(CoreTests, HelloWorld)
 {
 	const std::string hw = "HelloWorld\n";
-	EXPECT_EQ(smokeTest(hw.data()),hw);
+	EXPECT_EQ(smokeTest(hw.data()), hw);
 }
 
 TEST(CoreTests, SetAnyGenerator)
@@ -83,7 +83,8 @@ TEST(CoreTests, SetResolution)
 
 TEST(GeneratorsTest, TestAllGenerators)
 {
-	for (int i = static_cast<int>(GeneratorType::empty)+1; i < static_cast<int>(GeneratorType::generatorTypeSize); i++)
+	for (int i = static_cast<int>(GeneratorType::empty) + 1; i < static_cast<int>(GeneratorType::generatorTypeSize); i
+	     ++)
 	{
 		HGContextHandle ctx = getNewContext();
 		EXPECT_TRUE(setGenerator(ctx, static_cast<GeneratorType>(i), 1.f));
@@ -95,8 +96,14 @@ TEST(GeneratorsTest, TestAllGenerators)
 	}
 }
 
-int main(int argc, char **argv)
+int main(int argc, char** argv)
 {
+	HGContextHandle ctx = getNewContext();
+	EXPECT_TRUE(setRegionDimensions(ctx, 2,2));
+	EXPECT_TRUE(setGenerator(ctx, GeneratorType::brownian_perlin, 5.0f));
+	EXPECT_TRUE(generateRegion(ctx,1,1));
+	EXPECT_TRUE(generateRegion(ctx,1,2));
+
 	::testing::InitGoogleTest(&argc, argv);
 	return RUN_ALL_TESTS();
 }

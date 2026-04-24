@@ -580,9 +580,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   chunkObject: {fileID: 4964449792824702691, guid: 43111e6e73b10cb428e02d79e5ca80eb, type: 3}
   chunkDimensions: {x: 16, y: 16}
-  chunkCount: {x: 1, y: 1}
-  resolution: 5
-  scale: 13.6
+  chunkCount: {x: 5, y: 5}
+  resolution: 10
+  scale: 13.5
   amplitude: 5
 --- !u!1660057539 &9223372036854775807
 SceneRoots:

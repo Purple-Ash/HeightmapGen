@@ -26,8 +26,8 @@ public class Chunk : MonoBehaviour
     public void generateMesh(float[] newMesh, int sizeX, int sizeY, int resolution, float amplitude)
     {
         Mesh mesh = new Mesh();
-        int actualSizeX = (sizeX+1)*resolution;
-        int actualSizeY = (sizeY+1)*resolution;
+        int actualSizeX = sizeX * resolution + 1;
+        int actualSizeY = sizeY * resolution + 1;
         Vector3[] vertices = new Vector3[actualSizeX * actualSizeY];
         Color[] colors = new Color[actualSizeX * actualSizeY];
         Vector2[] UVs = new Vector2[actualSizeX * actualSizeY];
