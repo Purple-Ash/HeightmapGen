@@ -32,6 +32,19 @@ add_executable(Tests
     ${TEST_SOURCES}
 )
 
+find_package(SDL2)
+
+if (SDL2_FOUND)
+    add_executable(view
+            view/view.cpp
+    )
+
+    target_link_libraries(view PRIVATE
+            SDL2::SDL2
+            HeightmapGen
+    )
+endif()
+
 find_package(Threads REQUIRED)
 
 target_link_libraries(Tests PRIVATE
