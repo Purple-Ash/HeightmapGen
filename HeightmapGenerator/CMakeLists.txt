@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8...4.0)
 project(HeightmapGen)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 
 include(FetchContent)
 
