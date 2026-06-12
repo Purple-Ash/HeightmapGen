@@ -18,6 +18,8 @@ using HGContextHandle = HGContext*;
 enum struct GeneratorType {
 	empty = 0,
 	random = 1,
+	perlin = 2,
+	brownian_perlin = 3,
 	generatorTypeSize
 };
 
@@ -31,8 +33,14 @@ extern "C" {
 	HG_API bool closeContext(HGContextHandle ctx);
 
 	HG_API bool setRegionDimensions(HGContextHandle ctx, int32_t sizeX, int32_t sizeY);
-	HG_API bool setGenerator(HGContextHandle ctx, GeneratorType generator_type, float scaleHorizontal, float scaleVertical);
+	HG_API bool setVerticalAmplitude(HGContextHandle ctx, float multiplier);
+	HG_API bool setResolution(HGContextHandle ctx, int32_t resolution);
+	HG_API bool setGenerator(HGContextHandle ctx, GeneratorType generator_type, float scaleHorizontal);
 
 	HG_API bool generateRegion(HGContextHandle ctx, int32_t x, int32_t y);
 	HG_API bool getRegion(HGContextHandle ctx, int32_t x, int32_t y, Chunk*& data);
 }
+
+
+
+

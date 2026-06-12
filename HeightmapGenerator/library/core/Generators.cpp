@@ -5,13 +5,13 @@
 Generator::Generator(float scaleHorizontal, float scaleVertical)
 {
 	this->scaleHorizontal = scaleHorizontal;
-	this->scaleVertical = scaleVertical;
+	this->amplitude = scaleVertical;
 }
 
 
 float RandomGenerator::getHeight(float posX, float posY)
 {
-	return randomFloatBetween(1.f,2.f) * scaleVertical;
+	return randomFloatBetween(0.f,1.f) * amplitude;
 }
 
 bool RandomGenerator::isDeterministic()
