@@ -38,17 +38,17 @@ TEST(CoreTests, HelloWorld)
 TEST(CoreTests, SetAnyGenerator)
 {
 	HGContextHandle ctx = getNewContext();
-	EXPECT_TRUE(setGenerator(ctx, GeneratorType::random, 1.f));
-	EXPECT_TRUE(setGenerator(ctx, GeneratorType::random, 1.f));
-	EXPECT_FALSE(setGenerator(ctx, GeneratorType::empty, 1.f));
-	EXPECT_FALSE(setGenerator(ctx, GeneratorType::generatorTypeSize, 1.f));
-	EXPECT_TRUE(setGenerator(ctx, GeneratorType::random, 1.f));
+	EXPECT_TRUE(setGenerator(ctx, GeneratorType::random, 1.f, nullptr));
+	EXPECT_TRUE(setGenerator(ctx, GeneratorType::random, 1.f, nullptr));
+	EXPECT_FALSE(setGenerator(ctx, GeneratorType::empty, 1.f, nullptr));
+	EXPECT_FALSE(setGenerator(ctx, GeneratorType::generatorTypeSize, 1.f, nullptr));
+	EXPECT_TRUE(setGenerator(ctx, GeneratorType::random, 1.f, nullptr));
 }
 
 TEST(CoreTests, GenerateAndGetRegion)
 {
 	HGContextHandle ctx = getNewContext();
-	EXPECT_TRUE(setGenerator(ctx, GeneratorType::random, 1.f));
+	EXPECT_TRUE(setGenerator(ctx, GeneratorType::random, 1.f, nullptr));
 	Chunk* data = nullptr;
 	EXPECT_TRUE(generateRegion(ctx,1,1));
 	EXPECT_TRUE(getRegion(ctx,1,1, data));
@@ -58,7 +58,7 @@ TEST(CoreTests, GenerateAndGetRegion)
 TEST(CoreTests, ReadNonExistantRegion)
 {
 	HGContextHandle ctx = getNewContext();
-	EXPECT_TRUE(setGenerator(ctx, GeneratorType::random, 1.f));
+	EXPECT_TRUE(setGenerator(ctx, GeneratorType::random, 1.f, nullptr));
 	Chunk* data = nullptr;
 	EXPECT_FALSE(getRegion(ctx,1,1, data));
 	EXPECT_EQ(data, nullptr);
@@ -87,7 +87,7 @@ TEST(GeneratorsTest, TestAllGenerators)
 	     ++)
 	{
 		HGContextHandle ctx = getNewContext();
-		EXPECT_TRUE(setGenerator(ctx, static_cast<GeneratorType>(i), 1.f));
+		EXPECT_TRUE(setGenerator(ctx, static_cast<GeneratorType>(i), 1.f, nullptr));
 		Chunk* data = nullptr;
 		EXPECT_FALSE(getRegion(ctx,1,1, data));
 		EXPECT_EQ(data, nullptr);
@@ -100,7 +100,7 @@ int main(int argc, char** argv)
 {
 	HGContextHandle ctx = getNewContext();
 	EXPECT_TRUE(setRegionDimensions(ctx, 2,2));
-	EXPECT_TRUE(setGenerator(ctx, GeneratorType::brownian_perlin, 5.0f));
+	EXPECT_TRUE(setGenerator(ctx, GeneratorType::brownian_perlin, 5.0f, nullptr));
 	EXPECT_TRUE(generateRegion(ctx,1,1));
 	EXPECT_TRUE(generateRegion(ctx,1,2));
 
