@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 2.8...4.0)
 project(HeightmapGen)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
 
 include(FetchContent)
 
@@ -32,6 +32,19 @@ target_include_directories(HeightmapGen
 add_executable(Tests
     ${TEST_SOURCES}
 )
+
+find_package(SDL2)
+
+if (SDL2_FOUND)
+    add_executable(view
+            view/view.cpp
+    )
+
+    target_link_libraries(view PRIVATE
+            SDL2::SDL2
+            HeightmapGen
+    )
+endif()
 
 find_package(Threads REQUIRED)
 
