@@ -584,7 +584,7 @@ MonoBehaviour:
   resolution: 10
   scale: 13.5
   amplitude: 5
-  generator: 4
+  generator: 2
   erosionSeed: 0
   erosionIterations: 1
   erosionRadius: 3

@@ -26,6 +26,7 @@ public class Chunk : MonoBehaviour
     public void generateMesh(float[] newMesh, int sizeX, int sizeY, int resolution, float amplitude)
     {
         Mesh mesh = new Mesh();
+        mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
         int actualSizeX = sizeX * resolution + 1;
         int actualSizeY = sizeY * resolution + 1;
         Vector3[] vertices = new Vector3[actualSizeX * actualSizeY];
