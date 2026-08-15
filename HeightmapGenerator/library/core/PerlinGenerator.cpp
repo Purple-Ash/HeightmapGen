@@ -51,7 +51,7 @@ void initPermutation()
 		p[i] = p[i - 256];
 }
 
-PerlinGenerator::PerlinGenerator(float scaleHorizontal, float scaleVertical) : Generator(scaleHorizontal,scaleVertical)
+PerlinGenerator::PerlinGenerator(float scaleHorizontal, float scaleVertical, uint32_t resolution) : Generator(scaleHorizontal,scaleVertical, resolution)
 {
 	initPermutation();
 }
@@ -89,12 +89,12 @@ float PerlinGenerator::getHeight(float posX, float posY)
 }
 
 
-BrownianPerlinGenerator::BrownianPerlinGenerator(float scaleHorizontal, float amplitude) : Generator(scaleHorizontal, amplitude)
+BrownianPerlinGenerator::BrownianPerlinGenerator(float scaleHorizontal, float amplitude, uint32_t resolution) : Generator(scaleHorizontal, amplitude, resolution)
 {
-	octaves.emplace_back(scaleHorizontal, amplitude);
-	octaves.emplace_back(scaleHorizontal * 2, amplitude / 2);
-	octaves.emplace_back(scaleHorizontal * 4, amplitude / 4);
-	octaves.emplace_back(scaleHorizontal * 8, amplitude / 8);
+	octaves.emplace_back(scaleHorizontal, amplitude, resolution);
+	octaves.emplace_back(scaleHorizontal * 2, amplitude / 2, resolution);
+	octaves.emplace_back(scaleHorizontal * 4, amplitude / 4, resolution);
+	octaves.emplace_back(scaleHorizontal * 8, amplitude / 8, resolution);
 }
 
 float BrownianPerlinGenerator::getHeight(float posX, float posY)

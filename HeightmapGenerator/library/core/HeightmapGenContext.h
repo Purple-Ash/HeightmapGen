@@ -1,16 +1,7 @@
 #pragma once
 #include "Generators.h"
 #include "HeightmapGenAPI.h"
-
-struct Vec2Int
-{
-	int32_t x;
-	int32_t y;
-
-	Vec2Int() = default;
-	Vec2Int(int32_t x, int32_t y);
-	bool operator==(const Vec2Int& other) const = default;
-};
+#include "Helpers.h"
 
 struct Chunk
 {
@@ -47,7 +38,7 @@ class HGContext
 public:
 	bool generateRegion(Vec2Int position);
 	bool getRegion(Vec2Int position, Chunk*& data);
-	bool setGenerator(GeneratorType type, float scaleHorizontal);
+	bool setGenerator(GeneratorType type, float scaleHorizontal, void* settings);
 	bool setResolution(int32_t resolution);
 	bool setRegionDimensions(Vec2Int dimensions);
 	bool setVerticalAmplitude(float amplitude);

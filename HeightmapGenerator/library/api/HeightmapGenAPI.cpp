@@ -36,9 +36,9 @@ HG_API bool setResolution(HGContextHandle ctx, int32_t resolution)
 	return ctx->setResolution(resolution);
 }
 
-HG_API bool setGenerator(HGContextHandle ctx, GeneratorType generator_type, float scaleHorizontal)
+HG_API bool setGenerator(HGContextHandle ctx, GeneratorType generator_type, float scaleHorizontal, void* settings)
 {
-	return ctx->setGenerator(generator_type, scaleHorizontal);
+	return ctx->setGenerator(generator_type, scaleHorizontal, settings);
 }
 
 HG_API bool generateRegion(HGContextHandle ctx, int32_t x, int32_t y)

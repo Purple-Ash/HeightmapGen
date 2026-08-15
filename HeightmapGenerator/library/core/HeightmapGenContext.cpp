@@ -13,7 +13,7 @@ Chunk::Chunk(Vec2Int size, int32_t resolution, float amplitude)
 	this->amplitude = amplitude;
 }
 
-Chunk::Chunk(Chunk&& other) noexcept : data(other.data), size(other.size)
+Chunk::Chunk(Chunk&& other) noexcept : data(other.data), size(other.size), amplitude(other.amplitude)
 {
 	other.data = nullptr;
 }
@@ -25,6 +25,7 @@ Chunk& Chunk::operator=(Chunk&& other) noexcept
 		delete[] data;
 		data = other.data;
 		size = other.size;
+		amplitude = other.amplitude;
 		other.data = nullptr;
 	}
 	return *this;
@@ -55,18 +56,13 @@ bool HGContext::generateRegion(Vec2Int position)
 		int max_y = (chunkDimensions.y) * resolution + 1;
 		auto region_offset_x = static_cast<float>(position.x * chunkDimensions.x);
 		auto region_offset_y = static_cast<float>(position.y * chunkDimensions.y);
-		for (int i = 0; i < max_x; i++)
-		{
-			for (int j = 0; j < max_y; j++)
-			{
-				float sample_x = static_cast<float>(i) / static_cast<float>(resolution) + region_offset_x;
-				float sample_y = static_cast<float>(j) / static_cast<float>(resolution) + region_offset_y;
-				newChunk.data[i * max_y + j] = generator->getHeight(
-					sample_x,
-					sample_y
-				);
-			}
-		}
+
+		generator->getHeightmap(
+			newChunk.data,
+			max_x, max_y,
+			region_offset_x, region_offset_y
+		);
+
 		return true;
 	}
 	return false;
@@ -100,25 +96,37 @@ bool HGContext::setResolution(int32_t resolution)
 	return false;
 }
 
-bool HGContext::setGenerator(GeneratorType type, float scale_horizontal)
+bool HGContext::setGenerator(GeneratorType type, float scale_horizontal, void* settings)
 {
+	Generator* newGenerator = nullptr;
 	switch (type)
 	{
 	case GeneratorType::empty:
 		return false;
-		break;
 	case GeneratorType::random:
-		generator = new RandomGenerator(scale_horizontal, amplitude);
+		newGenerator = new RandomGenerator(scale_horizontal, amplitude, resolution);
 		break;
 	case GeneratorType::perlin:
-		generator = new PerlinGenerator(scale_horizontal, amplitude);
+		newGenerator = new PerlinGenerator(scale_horizontal, amplitude, resolution);
 		break;
 	case GeneratorType::brownian_perlin:
-		generator = new BrownianPerlinGenerator(scale_horizontal, amplitude);
+		newGenerator = new BrownianPerlinGenerator(scale_horizontal, amplitude, resolution);
+		break;
+	case GeneratorType::hydraulic_erosion:
+	{
+		auto* erosionSettings = static_cast<HydraulicErosionSettings*>(settings);
+		newGenerator = new HydraulicErosionGenerator(scale_horizontal, amplitude, resolution, erosionSettings);
+		break;
+	}
+	case GeneratorType::coordinate:
+		newGenerator = new CoordinateGenerator(scale_horizontal, amplitude, resolution);
 		break;
 	default:
 		return false;
 	}
+
+	delete generator;
+	generator = newGenerator;
 	return true;
 }
 

@@ -584,6 +584,20 @@ MonoBehaviour:
   resolution: 10
   scale: 13.5
   amplitude: 5
+  generator: 4
+  erosionSeed: 0
+  erosionIterations: 1
+  erosionRadius: 3
+  maxDropletLifetime: 30
+  inertia: 0.05
+  sedimentCapacityFactor: 4
+  minSedimentCapacity: 0.01
+  erodeSpeed: 0.3
+  depositSpeed: 0.3
+  evaporateSpeed: 0.01
+  gravity: 4
+  initialSpeed: 1
+  initialWaterVolume: 1
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
