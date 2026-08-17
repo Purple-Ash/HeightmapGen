@@ -15,20 +15,34 @@ HG_API void DestroyContext(Context ctx) {
     if (ctx) delete ctx;
 }
 
-HG_API GeneratorHandle CreateHydraulicErosionGeneratorImpl(Context ctx, CommonSettings commonSettings, HydraulicErosionSettings erosionSettings) {
+HG_API GeneratorHandle CreatePerlinGenerator(Context ctx, CommonSettings commonSettings) {
+    if (!ctx) return nullptr;
+    GeneratorHandle gen = new PerlinGeneratorImpl(ctx, commonSettings);
+    ctx->GeneratorImpls.push_back(gen);
+    return gen;
+}
+
+HG_API GeneratorHandle CreateBrownianPerlinGenerator(Context ctx, CommonSettings commonSettings) {
+    if (!ctx) return nullptr;
+    GeneratorHandle gen = new BrownianPerlinGeneratorImpl(ctx, commonSettings);
+    ctx->GeneratorImpls.push_back(gen);
+    return gen;
+}
+
+HG_API GeneratorHandle CreateHydraulicErosionGenerator(Context ctx, CommonSettings commonSettings, HydraulicErosionSettings erosionSettings) {
     if (!ctx) return nullptr;
     GeneratorHandle gen = new HydraulicErosionGeneratorImpl(ctx, commonSettings, erosionSettings);
     ctx->GeneratorImpls.push_back((gen));
     return gen;
 }
 
-HG_API void DestroyGeneratorImpl(GeneratorHandle GeneratorImpl) {
-    if (GeneratorImpl) {
-        if (GeneratorImpl->context) {
-            auto& gens = GeneratorImpl->context->GeneratorImpls;
-            gens.erase(std::remove(gens.begin(), gens.end(), GeneratorImpl), gens.end());
+HG_API void DestroyGenerator(GeneratorHandle Generator) {
+    if (Generator) {
+        if (Generator->context) {
+            auto& gens = Generator->context->GeneratorImpls;
+            gens.erase(std::remove(gens.begin(), gens.end(), Generator), gens.end());
         }
-        delete GeneratorImpl;
+        delete Generator;
     }
 }
 

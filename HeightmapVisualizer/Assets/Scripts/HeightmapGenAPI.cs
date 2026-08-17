@@ -17,15 +17,6 @@ public static class HeightmapGenAPI
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct BarSettings
-    {
-        public float mountiness;
-        public float continentality;
-        public float erosion;
-        public float weirdness;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
     public struct HydraulicErosionSettings
     {
         public int seed;
@@ -70,7 +61,10 @@ public static class HeightmapGenAPI
     public static extern void DestroyContext(IntPtr ctx);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr CreateBarGenerator(IntPtr ctx, CommonSettings commonSettings, BarSettings barSettings);
+    public static extern IntPtr CreatePerlinGenerator(IntPtr ctx, CommonSettings commonSettings);
+
+    [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr CreateBrownianPerlinGenerator(IntPtr ctx, CommonSettings commonSettings);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr CreateHydraulicErosionGenerator(IntPtr ctx, CommonSettings commonSettings, HydraulicErosionSettings erosionSettings);

@@ -4,88 +4,94 @@ using UnityEngine;
 
 public class TerrainGen : MonoBehaviour
 {
-    [Header("Terrain")]
+    public enum GeneratorType
+    {
+        HydraulicErosion,
+        Perlin,
+        BrownianNoise
+    }
+
+    [Header("Terrain Common Settings")]
     [SerializeField] private GameObject chunkObject;
-    [SerializeField] private Vector2Int chunkDimensions = new Vector2Int(16, 16);
     [SerializeField] private Vector2Int chunkCount = new Vector2Int(1, 1);
-    [Min(1)] [SerializeField] private int resolution = 1;
-    [Min(0.0001f)] [SerializeField] private float scale = 2.0f;
+    [Min(1)][SerializeField] private int resolution = 16;
+    [Min(0.0001f)][SerializeField] private float scale = 2.0f;
     [SerializeField] private float amplitude = 5.0f;
-    [SerializeField] private HeightmapGenAPI.GeneratorType generator =
-        HeightmapGenAPI.GeneratorType.brownian_perlin;
+    [SerializeField] private ulong seed = 0;
+    [SerializeField] private bool cacheable = true;
+    [SerializeField] private GeneratorType generatorType = GeneratorType.HydraulicErosion;
 
-    [Header("Hydraulic Erosion")]
+    [Header("Hydraulic Erosion Settings")]
     [SerializeField] private int erosionSeed;
-    [Min(0)] [SerializeField] private int erosionIterations = 1;
-    [Min(1)] [SerializeField] private int erosionRadius = 3;
-    [Min(1)] [SerializeField] private int maxDropletLifetime = 30;
-    [Range(0.0f, 1.0f)] [SerializeField] private float inertia = 0.05f;
-    [Min(0.0f)] [SerializeField] private float sedimentCapacityFactor = 4.0f;
-    [Min(0.0f)] [SerializeField] private float minSedimentCapacity = 0.01f;
-    [Range(0.0f, 1.0f)] [SerializeField] private float erodeSpeed = 0.3f;
-    [Range(0.0f, 1.0f)] [SerializeField] private float depositSpeed = 0.3f;
-    [Range(0.0f, 1.0f)] [SerializeField] private float evaporateSpeed = 0.01f;
-    [Min(0.0f)] [SerializeField] private float gravity = 4.0f;
-    [Min(0.0f)] [SerializeField] private float initialSpeed = 1.0f;
-    [Min(0.0f)] [SerializeField] private float initialWaterVolume = 1.0f;
+    [Min(0)][SerializeField] private int erosionIterations = 10;
+    [Min(1)][SerializeField] private int erosionRadius = 3;
+    [Min(1)][SerializeField] private int maxDropletLifetime = 30;
+    [Range(0.0f, 1.0f)][SerializeField] private float inertia = 0.05f;
+    [Min(0.0f)][SerializeField] private float sedimentCapacityFactor = 4.0f;
+    [Min(0.0f)][SerializeField] private float minSedimentCapacity = 0.01f;
+    [Range(0.0f, 1.0f)][SerializeField] private float erodeSpeed = 0.3f;
+    [Range(0.0f, 1.0f)][SerializeField] private float depositSpeed = 0.3f;
+    [Range(0.0f, 1.0f)][SerializeField] private float evaporateSpeed = 0.01f;
+    [Min(0.0f)][SerializeField] private float gravity = 4.0f;
+    [Min(0.0f)][SerializeField] private float initialSpeed = 1.0f;
+    [Min(0.0f)][SerializeField] private float initialWaterVolume = 1.0f;
 
-    IntPtr context;
+
+    private IntPtr context = IntPtr.Zero;
+    private IntPtr generator = IntPtr.Zero;
 
     void Start()
     {
-        context = HeightmapGenAPI.getNewContext();
-
-        if (!HeightmapGenAPI.setRegionDimensions(context, chunkDimensions.x, chunkDimensions.y))
+        context = HeightmapGenAPI.CreateContext();
+        if (context == IntPtr.Zero)
         {
-            Debug.Log("Couldnt set dimensions");
+            Debug.LogError("Failed to create HeightmapGen context.");
             return;
         }
 
-        if (!HeightmapGenAPI.setVerticalAmplitude(context, amplitude))
+        HeightmapGenAPI.CommonSettings commonSettings = new HeightmapGenAPI.CommonSettings
         {
-            Debug.Log("Couldnt set amplitude");
-            return;
+            seed = seed,
+            scale = scale / 100f,
+            amplitude = amplitude,
+            resolution = resolution,
+            cacheable = cacheable
+        };
+
+        switch (generatorType)
+        {
+            case GeneratorType.Perlin:
+                generator = HeightmapGenAPI.CreatePerlinGenerator(context, commonSettings);
+                break;
+
+            case GeneratorType.BrownianNoise:
+                generator = HeightmapGenAPI.CreateBrownianPerlinGenerator(context, commonSettings);
+                break;
+
+            case GeneratorType.HydraulicErosion:
+                HeightmapGenAPI.HydraulicErosionSettings erosionSettings = new HeightmapGenAPI.HydraulicErosionSettings
+                {
+                    seed = erosionSeed,
+                    numIterations = erosionIterations,
+                    erosionRadius = erosionRadius,
+                    maxDropletLifetime = maxDropletLifetime,
+                    inertia = inertia,
+                    sedimentCapacityFactor = sedimentCapacityFactor,
+                    minSedimentCapacity = minSedimentCapacity,
+                    erodeSpeed = erodeSpeed,
+                    depositSpeed = depositSpeed,
+                    evaporateSpeed = evaporateSpeed,
+                    gravity = gravity,
+                    initialSpeed = initialSpeed,
+                    initialWaterVolume = initialWaterVolume
+                };
+                generator = HeightmapGenAPI.CreateHydraulicErosionGenerator(context, commonSettings, erosionSettings);
+                break;
         }
 
-        if (!HeightmapGenAPI.setResolution(context, resolution))
+        if (generator == IntPtr.Zero)
         {
-            Debug.Log("Couldnt set resolution");
-            return;
-        }
-
-        bool generatorConfigured;
-        if (generator == HeightmapGenAPI.GeneratorType.hydraulic_erosion)
-        {
-            HeightmapGenAPI.HydraulicErosionSettings erosionSettings =
-                HeightmapGenAPI.HydraulicErosionSettings.Default;
-            erosionSettings.seed = erosionSeed;
-            erosionSettings.numIterations = erosionIterations;
-            erosionSettings.erosionRadius = erosionRadius;
-            erosionSettings.maxDropletLifetime = maxDropletLifetime;
-            erosionSettings.inertia = inertia;
-            erosionSettings.sedimentCapacityFactor = sedimentCapacityFactor;
-            erosionSettings.minSedimentCapacity = minSedimentCapacity;
-            erosionSettings.erodeSpeed = erodeSpeed;
-            erosionSettings.depositSpeed = depositSpeed;
-            erosionSettings.evaporateSpeed = evaporateSpeed;
-            erosionSettings.gravity = gravity;
-            erosionSettings.initialSpeed = initialSpeed;
-            erosionSettings.initialWaterVolume = initialWaterVolume;
-
-            generatorConfigured = HeightmapGenAPI.setGenerator(
-                context,
-                generator,
-                scale / 100f,
-                ref erosionSettings);
-        }
-        else
-        {
-            generatorConfigured = HeightmapGenAPI.setGenerator(context, generator, scale / 100f);
-        }
-
-        if (!generatorConfigured)
-        {
-            Debug.LogError("Couldn't set generator");
+            Debug.LogError("Failed to create Generator instance.");
             return;
         }
 
@@ -93,46 +99,54 @@ public class TerrainGen : MonoBehaviour
         {
             for (int j = 0; j < chunkCount.y; j++)
             {
-                if (!HeightmapGenAPI.generateRegion(context, i, j))
+                IntPtr chunkBufferPtr = HeightmapGenAPI.GetChunk(generator, i, j);
+                if (chunkBufferPtr == IntPtr.Zero)
                 {
-                    Debug.Log("Couldnt generate region");
-                    return;
+                    Debug.LogWarning($"Couldn't get chunk at ({i}, {j})");
+                    continue;
                 }
 
-                if (!HeightmapGenAPI.getRegion(context, i, j, out IntPtr chunkPtr))
-                {
-                    Debug.Log("Couldnt get region");
-                    return;
-                }
+                int totalSamples = resolution * resolution;
+                float[] heightData = new float[totalSamples];
+                Marshal.Copy(chunkBufferPtr, heightData, 0, totalSamples);
 
-                var chunk = Marshal.PtrToStructure<HeightmapGenAPI.Chunk>(chunkPtr);
-                Debug.Log($"Chunk Size: {chunk.size.x}x{chunk.size.y}");
+                Vector3 worldOffset = new Vector3(
+                    i * (resolution - 1) * scale,
+                    0,
+                    j * (resolution - 1) * scale
+                );
 
-                int length = (chunk.size.x * resolution + 1) * (chunk.size.y * resolution + 1);
-                float[] heightData = new float[length];
-                Marshal.Copy(chunk.data, heightData, 0, length);
                 GameObject instance = Instantiate(
-                    chunkObject, 
-                    new Vector3(chunkDimensions.x * i, 0, chunkDimensions.y * j), 
+                    chunkObject,
+                    worldOffset,
                     Quaternion.identity
                 );
 
-                instance.GetComponent<Chunk>().generateMesh(
-                    heightData, 
-                    chunk.size.x, 
-                    chunk.size.y, 
-                    resolution,amplitude
-                );
+                if (instance.TryGetComponent<Chunk>(out var chunkComp))
+                {
+                    chunkComp.generateMesh(
+                        heightData,
+                        resolution,
+                        resolution,
+                        scale,
+                        amplitude
+                    );
+                }
             }
         }
-
     }
 
     private void OnDestroy()
     {
+        if (generator != IntPtr.Zero)
+        {
+            HeightmapGenAPI.DestroyGenerator(generator);
+            generator = IntPtr.Zero;
+        }
+
         if (context != IntPtr.Zero)
         {
-            HeightmapGenAPI.closeContext(context);
+            HeightmapGenAPI.DestroyContext(context);
             context = IntPtr.Zero;
         }
     }

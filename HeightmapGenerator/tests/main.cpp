@@ -52,10 +52,10 @@ TEST(CoreTests, ContextAndGeneratorImplLifecycle)
     CommonSettings commonSettings{0, 1.0f, 1.0f, 16, true};
     HydraulicErosionSettings erosionSettings{};
 
-    GeneratorHandle gen = CreateHydraulicErosionGeneratorImpl(ctx, commonSettings, erosionSettings);
+    GeneratorHandle gen = CreateHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
     EXPECT_NE(gen, nullptr);
 
-    DestroyGeneratorImpl(gen);
+    DestroyGenerator(gen);
     DestroyContext(ctx);
 }
 
@@ -65,7 +65,7 @@ TEST(CoreTests, SynchronousDataAccess)
     CommonSettings commonSettings{42, 1.0f, 5.0f, 16, false};
     HydraulicErosionSettings erosionSettings{};
 
-    GeneratorHandle gen = CreateHydraulicErosionGeneratorImpl(ctx, commonSettings, erosionSettings);
+    GeneratorHandle gen = CreateHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
     EXPECT_NE(gen, nullptr);
 
     float* chunkData = GetChunk(gen, 1, 1);
@@ -83,7 +83,7 @@ TEST(CoreTests, CachingAndProbing)
     CommonSettings commonSettings{123, 1.0f, 10.0f, 16, true};
     HydraulicErosionSettings erosionSettings{};
 
-    GeneratorHandle gen = CreateHydraulicErosionGeneratorImpl(ctx, commonSettings, erosionSettings);
+    GeneratorHandle gen = CreateHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
     EXPECT_NE(gen, nullptr);
 
     bool ready = false;
@@ -110,7 +110,7 @@ TEST(CoreTests, NonCacheableProbingBehavior)
     CommonSettings commonSettings{123, 1.0f, 10.0f, 16, false};
     HydraulicErosionSettings erosionSettings{};
 
-    GeneratorHandle gen = CreateHydraulicErosionGeneratorImpl(ctx, commonSettings, erosionSettings);
+    GeneratorHandle gen = CreateHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
     EXPECT_NE(gen, nullptr);
 
     bool ready = true;
@@ -128,7 +128,7 @@ TEST(CoreTests, ClearAllCache)
     CommonSettings commonSettings{777, 1.0f, 1.0f, 16, true};
     HydraulicErosionSettings erosionSettings{};
 
-    GeneratorHandle gen = CreateHydraulicErosionGeneratorImpl(ctx, commonSettings, erosionSettings);
+    GeneratorHandle gen = CreateHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
 
     RequestChunk(gen, 0, 0);
     RequestChunk(gen, 1, 1);
@@ -154,7 +154,7 @@ int main(int argc, char** argv)
     CommonSettings commonSettings{1, 5.0f, 1.0f, 16, true};
     HydraulicErosionSettings erosionSettings{};
 
-    GeneratorHandle gen = CreateHydraulicErosionGeneratorImpl(ctx, commonSettings, erosionSettings);
+    GeneratorHandle gen = CreateHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
     if (gen)
     {
         RequestChunk(gen, 1, 1);

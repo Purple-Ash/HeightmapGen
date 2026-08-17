@@ -160,10 +160,9 @@ void HydraulicErosionGeneratorImpl::generateChunkData(int32_t chunkX, int32_t ch
 
     std::vector<float> paddedHeightmap(paddedSampleCount);
 
-    float originX = chunkX * res * settings.scale;
-    float originY = chunkY * res * settings.scale;
-    float paddedOriginX = originX - (radius * settings.scale);
-    float paddedOriginY = originY - (radius * settings.scale);
+    int32_t stride = (res > 1) ? (res - 1) : 1;
+    int32_t startSampleX = chunkX * stride - radius;
+    int32_t startSampleY = chunkY * stride - radius;
 
     CommonSettings baseSettings = settings;
     baseSettings.amplitude = 1.0f;
@@ -171,8 +170,8 @@ void HydraulicErosionGeneratorImpl::generateChunkData(int32_t chunkX, int32_t ch
 
     for (int x = 0; x < paddedWidth; x++) {
         for (int y = 0; y < paddedHeight; y++) {
-            float posX = paddedOriginX + x * settings.scale;
-            float posY = paddedOriginY + y * settings.scale;
+            float posX = static_cast<float>(startSampleX + x);
+            float posY = static_cast<float>(startSampleY + y);
             paddedHeightmap[x * paddedHeight + y] = baseGeneratorImpl.getHeight(posX, posY);
         }
     }

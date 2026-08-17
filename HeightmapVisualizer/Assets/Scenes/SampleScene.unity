@@ -579,23 +579,24 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   chunkObject: {fileID: 4964449792824702691, guid: 43111e6e73b10cb428e02d79e5ca80eb, type: 3}
-  chunkDimensions: {x: 16, y: 16}
-  chunkCount: {x: 5, y: 5}
-  resolution: 10
-  scale: 13.5
-  amplitude: 5
-  generator: 2
+  chunkCount: {x: 2, y: 2}
+  resolution: 256
+  scale: 0.5
+  amplitude: 45
+  seed: 0
+  cacheable: 1
+  generatorType: 0
   erosionSeed: 0
-  erosionIterations: 1
-  erosionRadius: 3
+  erosionIterations: 3
+  erosionRadius: 5
   maxDropletLifetime: 30
-  inertia: 0.05
+  inertia: 0.219
   sedimentCapacityFactor: 4
-  minSedimentCapacity: 0.01
+  minSedimentCapacity: 0.04
   erodeSpeed: 0.3
   depositSpeed: 0.3
   evaporateSpeed: 0.01
-  gravity: 4
+  gravity: 1
   initialSpeed: 1
   initialWaterVolume: 1
 --- !u!1660057539 &9223372036854775807

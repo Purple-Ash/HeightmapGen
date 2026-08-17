@@ -47,8 +47,10 @@ extern "C" {
     HG_API Context CreateContext();
     HG_API void DestroyContext(Context ctx);
 
-    HG_API GeneratorHandle CreateHydraulicErosionGeneratorImpl(Context ctx, CommonSettings commonSettings, HydraulicErosionSettings erosionSettings);
-    HG_API void DestroyGeneratorImpl(GeneratorHandle GeneratorImpl);
+    HG_API GeneratorHandle CreateHydraulicErosionGenerator(Context ctx, CommonSettings commonSettings, HydraulicErosionSettings erosionSettings);
+    HG_API GeneratorHandle CreatePerlinGenerator(Context ctx, CommonSettings commonSettings);
+    HG_API GeneratorHandle CreateBrownianPerlinGenerator(Context ctx, CommonSettings commonSettings);
+    HG_API void DestroyGenerator(GeneratorHandle GeneratorImpl);
 
     HG_API float* GetChunk(GeneratorHandle GeneratorImpl, int32_t x, int32_t y);
     HG_API float GetPoint(GeneratorHandle GeneratorImpl, int32_t x, int32_t y);

@@ -98,11 +98,26 @@ BrownianPerlinGeneratorImpl::BrownianPerlinGeneratorImpl(ContextImpl* ctx, const
 
 float BrownianPerlinGeneratorImpl::getHeight(float posX, float posY)
 {
-	float height = octaves[0].getHeight(posX, posY);
-	height += octaves[1].getHeight(posX, posY);
-	height += octaves[2].getHeight(posX, posY);
-	height += octaves[3].getHeight(posX, posY);
-	return height;
+    float totalHeight = 0.0f;
+    float frequency = 1.0f;
+    float currentAmplitude = 1.0f;
+
+    const float lacunarity = 2.0f;
+    const float persistence = 0.5f;
+
+    for (int i = 0; i < octaves.size(); i++) {
+        CommonSettings octaveSettings = settings;
+        octaveSettings.scale = settings.scale * frequency;
+        octaveSettings.amplitude = currentAmplitude;
+
+        PerlinGeneratorImpl octaveGen(context, octaveSettings);
+        totalHeight += octaveGen.getHeight(posX, posY);
+
+        currentAmplitude *= persistence;
+        frequency *= lacunarity;
+    }
+
+    return totalHeight * settings.amplitude;
 }
 
 bool BrownianPerlinGeneratorImpl::isDeterministic()
