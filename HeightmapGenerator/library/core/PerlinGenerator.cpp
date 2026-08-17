@@ -51,21 +51,20 @@ void initPermutation()
 		p[i] = p[i - 256];
 }
 
-PerlinGenerator::PerlinGenerator(float scaleHorizontal, float scaleVertical, uint32_t resolution) : Generator(scaleHorizontal,scaleVertical, resolution)
-{
-	initPermutation();
+PerlinGeneratorImpl::PerlinGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings) : GeneratorImpl(ctx, settings) {
+    initPermutation();
 }
 
-bool PerlinGenerator::isDeterministic()
+bool PerlinGeneratorImpl::isDeterministic()
 {
 	return true;
 }
 
 
-float PerlinGenerator::getHeight(float posX, float posY)
+float PerlinGeneratorImpl::getHeight(float posX, float posY)
 {
-	float x = posX * scaleHorizontal;
-	float y = posY * scaleHorizontal;
+	float x = posX * settings.scale;
+	float y = posY * settings.scale;
 
 	int X = (int)floor(x) & 255;
 	int Y = (int)floor(y) & 255;
@@ -85,19 +84,19 @@ float PerlinGenerator::getHeight(float posX, float posY)
 		v
 	);
 
-	return (res + 1.0f) * 0.5f * amplitude;
+	return (res + 1.0f) * 0.5f * settings.amplitude;
 }
 
 
-BrownianPerlinGenerator::BrownianPerlinGenerator(float scaleHorizontal, float amplitude, uint32_t resolution) : Generator(scaleHorizontal, amplitude, resolution)
+BrownianPerlinGeneratorImpl::BrownianPerlinGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings) : GeneratorImpl(ctx, settings)
 {
-	octaves.emplace_back(scaleHorizontal, amplitude, resolution);
-	octaves.emplace_back(scaleHorizontal * 2, amplitude / 2, resolution);
-	octaves.emplace_back(scaleHorizontal * 4, amplitude / 4, resolution);
-	octaves.emplace_back(scaleHorizontal * 8, amplitude / 8, resolution);
+	octaves.emplace_back(ctx, settings);
+	octaves.emplace_back(ctx, settings);
+	octaves.emplace_back(ctx, settings);
+	octaves.emplace_back(ctx, settings);
 }
 
-float BrownianPerlinGenerator::getHeight(float posX, float posY)
+float BrownianPerlinGeneratorImpl::getHeight(float posX, float posY)
 {
 	float height = octaves[0].getHeight(posX, posY);
 	height += octaves[1].getHeight(posX, posY);
@@ -106,7 +105,7 @@ float BrownianPerlinGenerator::getHeight(float posX, float posY)
 	return height;
 }
 
-bool BrownianPerlinGenerator::isDeterministic()
+bool BrownianPerlinGeneratorImpl::isDeterministic()
 {
 	return true;
 }

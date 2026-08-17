@@ -1,5 +1,7 @@
 #pragma once
 #include <random>
+#include <vector>
+#include <cstdint>
 
 inline float randomFloatBetween(float min, float max)
 {
@@ -15,6 +17,9 @@ struct Vec2Int {
 	int32_t y;
 
 	Vec2Int() = default;
-	Vec2Int(int32_t x, int32_t y);
+	Vec2Int(int32_t x, int32_t y){
+		this->x = x;
+		this->y = y;
+	}
 	bool operator==(const Vec2Int& other) const = default;
 };

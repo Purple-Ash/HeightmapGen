@@ -6,28 +6,23 @@ public static class HeightmapGenAPI
     private const string DLL_NAME = "HeightmapGen";
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct Vec2Int
+    public struct CommonSettings
     {
-        public int x;
-        public int y;
+        public ulong seed;
+        public float scale;
+        public float amplitude;
+        public int resolution;
+        [MarshalAs(UnmanagedType.I1)]
+        public bool cacheable;
     }
 
     [StructLayout(LayoutKind.Sequential)]
-    public struct Chunk
+    public struct BarSettings
     {
-        public IntPtr data;
-        public Vec2Int size;
-        public float amplitude;
-    }
-
-    public enum GeneratorType : int
-    {
-        empty = 0,
-        random = 1,
-        perlin = 2,
-        brownian_perlin = 3,
-        hydraulic_erosion = 4,
-        coordinate = 5
+        public float mountiness;
+        public float continentality;
+        public float erosion;
+        public float weirdness;
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -47,120 +42,65 @@ public static class HeightmapGenAPI
         public float initialSpeed;
         public float initialWaterVolume;
 
-        public static HydraulicErosionSettings Default
+        public static HydraulicErosionSettings Default => new HydraulicErosionSettings
         {
-            get
-            {
-                return new HydraulicErosionSettings
-                {
-                    seed = 0,
-                    numIterations = 10,
-                    erosionRadius = 3,
-                    maxDropletLifetime = 30,
-                    inertia = 0.05f,
-                    sedimentCapacityFactor = 4.0f,
-                    minSedimentCapacity = 0.01f,
-                    erodeSpeed = 0.3f,
-                    depositSpeed = 0.3f,
-                    evaporateSpeed = 0.01f,
-                    gravity = 4.0f,
-                    initialSpeed = 1.0f,
-                    initialWaterVolume = 1.0f
-                };
-            }
-        }
+            seed = 0,
+            numIterations = 10,
+            erosionRadius = 3,
+            maxDropletLifetime = 30,
+            inertia = 0.05f,
+            sedimentCapacityFactor = 4.0f,
+            minSedimentCapacity = 0.01f,
+            erodeSpeed = 0.3f,
+            depositSpeed = 0.3f,
+            evaporateSpeed = 0.01f,
+            gravity = 4.0f,
+            initialSpeed = 1.0f,
+            initialWaterVolume = 1.0f
+        };
     }
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
-    public static extern IntPtr smokeTest(
-        [MarshalAs(UnmanagedType.LPStr)] string data
-    );
+    public static extern IntPtr smokeTest([MarshalAs(UnmanagedType.LPStr)] string data);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr getNewContext();
+    public static extern IntPtr CreateContext();
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    [return: MarshalAs(UnmanagedType.U1)]
-    public static extern bool closeContext(IntPtr ctx);
+    public static extern void DestroyContext(IntPtr ctx);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    [return: MarshalAs(UnmanagedType.U1)]
-    public static extern bool setRegionDimensions(
-        IntPtr ctx,
-        int sizeX,
-        int sizeY
-    );
+    public static extern IntPtr CreateBarGenerator(IntPtr ctx, CommonSettings commonSettings, BarSettings barSettings);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    [return: MarshalAs(UnmanagedType.U1)]
-    public static extern bool setVerticalAmplitude(
-        IntPtr ctx,
-        float multiplier
-    );
+    public static extern IntPtr CreateHydraulicErosionGenerator(IntPtr ctx, CommonSettings commonSettings, HydraulicErosionSettings erosionSettings);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    [return: MarshalAs(UnmanagedType.U1)]
-    public static extern bool setResolution(
-        IntPtr ctx,
-        int resolution
-    );
-
-    [DllImport(DLL_NAME, EntryPoint = "setGenerator", CallingConvention = CallingConvention.Cdecl)]
-    [return: MarshalAs(UnmanagedType.U1)]
-    private static extern bool setGeneratorWithoutSettings(
-        IntPtr ctx,
-        GeneratorType generator_type,
-        float scaleHorizontal,
-        IntPtr settings
-    );
-
-    [DllImport(DLL_NAME, EntryPoint = "setGenerator", CallingConvention = CallingConvention.Cdecl)]
-    [return: MarshalAs(UnmanagedType.U1)]
-    private static extern bool setGeneratorWithHydraulicSettings(
-        IntPtr ctx,
-        GeneratorType generator_type,
-        float scaleHorizontal,
-        ref HydraulicErosionSettings settings
-    );
-
-    public static bool setGenerator(
-        IntPtr ctx,
-        GeneratorType generatorType,
-        float scaleHorizontal)
-    {
-        return setGeneratorWithoutSettings(ctx, generatorType, scaleHorizontal, IntPtr.Zero);
-    }
-
-    public static bool setGenerator(
-        IntPtr ctx,
-        GeneratorType generatorType,
-        float scaleHorizontal,
-        ref HydraulicErosionSettings settings)
-    {
-        return setGeneratorWithHydraulicSettings(ctx, generatorType, scaleHorizontal, ref settings);
-    }
+    public static extern void DestroyGenerator(IntPtr generator);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    [return: MarshalAs(UnmanagedType.U1)]
-    public static extern bool generateRegion(
-        IntPtr ctx,
-        int x,
-        int y
-    );
+    public static extern IntPtr GetChunk(IntPtr generator, int x, int y);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    [return: MarshalAs(UnmanagedType.U1)]
-    public static extern bool getRegion(
-        IntPtr ctx,
-        int x,
-        int y,
-        out IntPtr chunkPtr
-    );
+    public static extern float GetPoint(IntPtr generator, int x, int y);
 
-    public static Chunk PtrToChunk(IntPtr ptr)
-    {
-        return Marshal.PtrToStructure<Chunk>(ptr);
-    }
+    [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void RequestChunk(IntPtr generator, int x, int y);
+
+    [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void RequestPoint(IntPtr generator, int x, int y);
+
+    [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr ProbeChunk(IntPtr generator, int x, int y, out bool ready);
+
+    [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
+    public static extern float ProbePoint(IntPtr generator, int x, int y, out bool ready);
+
+    [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void CleanChunkFromCache(IntPtr generator, int x, int y);
+
+    [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void ClearAllCache(IntPtr generator);
 
     public static string PtrToString(IntPtr ptr)
     {
