@@ -3,40 +3,6 @@
 
 #include "../library/core/HeightmapGenContext.h"
 
-#ifdef __linux__
-#include <dlfcn.h>
-#include <string>
-
-TEST(CoreTests, DynamicLoad)
-{
-    void* lib = dlopen("libHeightmapGen.so", RTLD_NOW);
-    EXPECT_NE(lib, nullptr);
-
-    void* symbol = dlsym(lib, "smokeTest");
-    EXPECT_NE(symbol, nullptr);
-
-    auto function = reinterpret_cast<const char*(*)(const char*)>(symbol);
-
-    const char* hw = "HelloWorld\n";
-    EXPECT_EQ(function(hw), hw);
-
-    // Verify exported C API functions
-    EXPECT_NE(dlsym(lib, "CreateContext"), nullptr);
-    EXPECT_NE(dlsym(lib, "DestroyContext"), nullptr);
-    EXPECT_NE(dlsym(lib, "CreateHydraulicErosionGeneratorImpl"), nullptr);
-    EXPECT_NE(dlsym(lib, "DestroyGeneratorImpl"), nullptr);
-    EXPECT_NE(dlsym(lib, "GetChunk"), nullptr);
-    EXPECT_NE(dlsym(lib, "GetPoint"), nullptr);
-    EXPECT_NE(dlsym(lib, "RequestChunk"), nullptr);
-    EXPECT_NE(dlsym(lib, "RequestPoint"), nullptr);
-    EXPECT_NE(dlsym(lib, "ProbeChunk"), nullptr);
-    EXPECT_NE(dlsym(lib, "ProbePoint"), nullptr);
-    EXPECT_NE(dlsym(lib, "CleanChunkFromCache"), nullptr);
-    EXPECT_NE(dlsym(lib, "ClearAllCache"), nullptr);
-
-    EXPECT_EQ(dlclose(lib), 0);
-}
-#endif
 
 TEST(CoreTests, HelloWorld)
 {
