@@ -30,7 +30,7 @@ HG_API GeneratorHandle CreateBrownianPerlinGenerator(Context ctx, CommonSettings
 }
 
 HG_API GeneratorHandle CreateHydraulicErosionGenerator(Context ctx, CommonSettings commonSettings, HydraulicErosionSettings erosionSettings) {
-    if (!ctx) return nullptr;
+    if (!ctx || !erosionSettings.baseGeneratorImpl) return nullptr;
     GeneratorHandle gen = new HydraulicErosionGeneratorImpl(ctx, commonSettings, erosionSettings);
     ctx->GeneratorImpls.push_back((gen));
     return gen;

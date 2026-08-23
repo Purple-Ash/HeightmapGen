@@ -27,7 +27,7 @@ public:
     float ProbePoint(int32_t x, int32_t y, bool* ready);
     void CleanChunkFromCache(int32_t x, int32_t y);
     void ClearAllCache();
-    
+
     virtual bool isDeterministic() = 0;
 };
 
@@ -62,6 +62,9 @@ public:
 
 class HydraulicErosionGeneratorImpl : public GeneratorImpl {
     HydraulicErosionSettings hydraulicErosionSettings;
+    // Non-owning: the base generator is created and destroyed independently by the caller
+    // via the C API (e.g. CreatePerlinGenerator), and just referenced here by handle.
+    GeneratorImpl* baseGenerator = nullptr;
 public:
     HydraulicErosionGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings, const HydraulicErosionSettings& erosionSettings);
     float getHeight(float posX, float posY) override;

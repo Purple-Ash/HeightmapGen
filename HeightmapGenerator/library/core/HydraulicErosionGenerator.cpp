@@ -146,8 +146,8 @@ void erodeHeightmap(std::vector<float>& heightmap, int32_t width, int32_t height
 	}
 }
 
-HydraulicErosionGeneratorImpl::HydraulicErosionGeneratorImpl(ContextImpl* ctx, const CommonSettings& commonSettings, const HydraulicErosionSettings& erosionSettings) 
-    : GeneratorImpl(ctx, commonSettings), hydraulicErosionSettings(erosionSettings) {
+HydraulicErosionGeneratorImpl::HydraulicErosionGeneratorImpl(ContextImpl* ctx, const CommonSettings& commonSettings, const HydraulicErosionSettings& erosionSettings)
+    : GeneratorImpl(ctx, commonSettings), hydraulicErosionSettings(erosionSettings), baseGenerator(erosionSettings.baseGeneratorImpl) {
 }
 
 void HydraulicErosionGeneratorImpl::generateChunkData(int32_t chunkX, int32_t chunkY, float* buffer) {
@@ -164,15 +164,11 @@ void HydraulicErosionGeneratorImpl::generateChunkData(int32_t chunkX, int32_t ch
     int32_t startSampleX = chunkX * stride - radius;
     int32_t startSampleY = chunkY * stride - radius;
 
-    CommonSettings baseSettings = settings;
-    baseSettings.amplitude = 1.0f;
-    BrownianPerlinGeneratorImpl baseGeneratorImpl(nullptr, baseSettings);
-
     for (int x = 0; x < paddedWidth; x++) {
         for (int y = 0; y < paddedHeight; y++) {
             float posX = static_cast<float>(startSampleX + x);
             float posY = static_cast<float>(startSampleY + y);
-            paddedHeightmap[x * paddedHeight + y] = baseGeneratorImpl.getHeight(posX, posY);
+            paddedHeightmap[x * paddedHeight + y] = baseGenerator->getHeight(posX, posY);
         }
     }
 

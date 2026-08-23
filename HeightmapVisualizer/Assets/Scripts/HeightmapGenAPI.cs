@@ -32,6 +32,7 @@ public static class HeightmapGenAPI
         public float gravity;
         public float initialSpeed;
         public float initialWaterVolume;
+        public IntPtr baseGeneratorImpl;
 
         public static HydraulicErosionSettings Default => new HydraulicErosionSettings
         {
@@ -47,7 +48,8 @@ public static class HeightmapGenAPI
             evaporateSpeed = 0.01f,
             gravity = 4.0f,
             initialSpeed = 1.0f,
-            initialWaterVolume = 1.0f
+            initialWaterVolume = 1.0f,
+            baseGeneratorImpl = IntPtr.Zero
         };
     }
 

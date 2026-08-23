@@ -1,9 +1,16 @@
 using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Threading.Tasks;
+using TMPro;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 public class TerrainGen : MonoBehaviour
 {
+    [SerializeField] private GameObject highestPoint;
+    [SerializeField] private GameObject lowestPoint;
     public enum GeneratorType
     {
         HydraulicErosion,
@@ -36,17 +43,92 @@ public class TerrainGen : MonoBehaviour
     [Min(0.0f)][SerializeField] private float initialSpeed = 1.0f;
     [Min(0.0f)][SerializeField] private float initialWaterVolume = 1.0f;
 
+    public static bool IsGenerating { get; private set; }
 
     private IntPtr context = IntPtr.Zero;
     private IntPtr generator = IntPtr.Zero;
+    private IntPtr baseGenerator = IntPtr.Zero;
+
+    private readonly List<GameObject> spawnedChunks = new List<GameObject>();
+    private Coroutine generationCoroutine;
+    private Task activeChunkTask;
 
     void Start()
     {
+        generationCoroutine = StartCoroutine(Generate());
+    }
+
+    void Update()
+    {
+        var keyboard = Keyboard.current;
+        if (keyboard != null && keyboard[Key.R].wasPressedThisFrame)
+        {
+            ReloadTerrain();
+        }
+    }
+
+    private void ReloadTerrain()
+    {
+        if (generationCoroutine != null)
+        {
+            StopCoroutine(generationCoroutine);
+            generationCoroutine = null;
+        }
+
+        activeChunkTask?.Wait();
+        activeChunkTask = null;
+        IsGenerating = false;
+
+        ClearChunks();
+        DestroyGenerators();
+
+        generationCoroutine = StartCoroutine(Generate());
+    }
+
+    private void ClearChunks()
+    {
+        foreach (var chunkGO in spawnedChunks)
+        {
+            if (chunkGO != null)
+            {
+                Destroy(chunkGO);
+            }
+        }
+        spawnedChunks.Clear();
+    }
+
+    private void DestroyGenerators()
+    {
+        if (generator != IntPtr.Zero)
+        {
+            HeightmapGenAPI.DestroyGenerator(generator);
+            generator = IntPtr.Zero;
+        }
+
+        if (baseGenerator != IntPtr.Zero)
+        {
+            HeightmapGenAPI.DestroyGenerator(baseGenerator);
+            baseGenerator = IntPtr.Zero;
+        }
+
+        if (context != IntPtr.Zero)
+        {
+            HeightmapGenAPI.DestroyContext(context);
+            context = IntPtr.Zero;
+        }
+    }
+
+    private IEnumerator Generate()
+    {
+        IsGenerating = true;
+
         context = HeightmapGenAPI.CreateContext();
         if (context == IntPtr.Zero)
         {
             Debug.LogError("Failed to create HeightmapGen context.");
-            return;
+            generationCoroutine = null;
+            IsGenerating = false;
+            yield break;
         }
 
         HeightmapGenAPI.CommonSettings commonSettings = new HeightmapGenAPI.CommonSettings
@@ -69,6 +151,17 @@ public class TerrainGen : MonoBehaviour
                 break;
 
             case GeneratorType.HydraulicErosion:
+                HeightmapGenAPI.CommonSettings baseSettings = commonSettings;
+                baseSettings.amplitude = 1.0f;
+                baseGenerator = HeightmapGenAPI.CreateBrownianPerlinGenerator(context, baseSettings);
+                if (baseGenerator == IntPtr.Zero)
+                {
+                    Debug.LogError("Failed to create base generator for hydraulic erosion");
+                    generationCoroutine = null;
+                    IsGenerating = false;
+                    yield break;
+                }
+
                 HeightmapGenAPI.HydraulicErosionSettings erosionSettings = new HeightmapGenAPI.HydraulicErosionSettings
                 {
                     seed = erosionSeed,
@@ -83,7 +176,8 @@ public class TerrainGen : MonoBehaviour
                     evaporateSpeed = evaporateSpeed,
                     gravity = gravity,
                     initialSpeed = initialSpeed,
-                    initialWaterVolume = initialWaterVolume
+                    initialWaterVolume = initialWaterVolume,
+                    baseGeneratorImpl = baseGenerator
                 };
                 generator = HeightmapGenAPI.CreateHydraulicErosionGenerator(context, commonSettings, erosionSettings);
                 break;
@@ -91,18 +185,47 @@ public class TerrainGen : MonoBehaviour
 
         if (generator == IntPtr.Zero)
         {
-            Debug.LogError("Failed to create Generator instance.");
-            return;
+            Debug.LogError("Failed to create Generator instance");
+            generationCoroutine = null;
+            IsGenerating = false;
+            yield break;
         }
+
+        float highest = float.NegativeInfinity;
+        float lowest = float.PositiveInfinity;
+        bool hasSamples = false;
 
         for (int i = 0; i < chunkCount.x; i++)
         {
             for (int j = 0; j < chunkCount.y; j++)
             {
-                IntPtr chunkBufferPtr = HeightmapGenAPI.GetChunk(generator, i, j);
+                int chunkX = i;
+                int chunkY = j;
+                IntPtr chunkBufferPtr = IntPtr.Zero;
+
+                activeChunkTask = Task.Run(() =>
+                {
+                    chunkBufferPtr = HeightmapGenAPI.GetChunk(generator, chunkX, chunkY);
+                });
+
+                while (!activeChunkTask.IsCompleted)
+                {
+                    yield return null;
+                }
+
+                bool faulted = activeChunkTask.IsFaulted;
+                Exception taskException = activeChunkTask.Exception;
+                activeChunkTask = null;
+
+                if (faulted)
+                {
+                    Debug.LogException(taskException);
+                    continue;
+                }
+
                 if (chunkBufferPtr == IntPtr.Zero)
                 {
-                    Debug.LogWarning($"Couldn't get chunk at ({i}, {j})");
+                    Debug.LogWarning($"Couldn't get chunk at ({chunkX}, {chunkY})");
                     continue;
                 }
 
@@ -110,17 +233,30 @@ public class TerrainGen : MonoBehaviour
                 float[] heightData = new float[totalSamples];
                 Marshal.Copy(chunkBufferPtr, heightData, 0, totalSamples);
 
+                for (int k = 0; k < heightData.Length; k++)
+                {
+                    float h = heightData[k];
+                    if (h > highest) highest = h;
+                    if (h < lowest) lowest = h;
+                }
+                if (totalSamples > 0)
+                {
+                    hasSamples = true;
+                }
+
                 Vector3 worldOffset = new Vector3(
-                    i * (resolution - 1) * scale,
+                    chunkX * (resolution - 1) * scale,
                     0,
-                    j * (resolution - 1) * scale
+                    chunkY * (resolution - 1) * scale
                 );
 
                 GameObject instance = Instantiate(
                     chunkObject,
                     worldOffset,
-                    Quaternion.identity
+                    Quaternion.identity,
+                    transform
                 );
+                spawnedChunks.Add(instance);
 
                 if (instance.TryGetComponent<Chunk>(out var chunkComp))
                 {
@@ -132,22 +268,46 @@ public class TerrainGen : MonoBehaviour
                         amplitude
                     );
                 }
+
+                if (hasSamples)
+                {
+                    UpdateHeightLabels(highest, lowest);
+                }
+
+                // Let this chunk actually render before starting the next one.
+                yield return null;
             }
+        }
+
+        generationCoroutine = null;
+        IsGenerating = false;
+    }
+
+    private void UpdateHeightLabels(float highest, float lowest)
+    {
+        if (highestPoint != null)
+        {
+            highestPoint.GetComponent<TextMeshProUGUI>().text = highest.ToString("F2");
+        }
+
+        if (lowestPoint != null)
+        {
+            lowestPoint.GetComponent<TextMeshProUGUI>().text = lowest.ToString("F2");
         }
     }
 
     private void OnDestroy()
     {
-        if (generator != IntPtr.Zero)
+        if (generationCoroutine != null)
         {
-            HeightmapGenAPI.DestroyGenerator(generator);
-            generator = IntPtr.Zero;
+            StopCoroutine(generationCoroutine);
+            generationCoroutine = null;
         }
 
-        if (context != IntPtr.Zero)
-        {
-            HeightmapGenAPI.DestroyContext(context);
-            context = IntPtr.Zero;
-        }
+        activeChunkTask?.Wait();
+        activeChunkTask = null;
+        IsGenerating = false;
+
+        DestroyGenerators();
     }
 }

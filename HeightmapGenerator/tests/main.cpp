@@ -16,7 +16,14 @@ TEST(CoreTests, ContextAndGeneratorImplLifecycle)
     EXPECT_NE(ctx, nullptr);
 
     CommonSettings commonSettings{0, 1.0f, 1.0f, 16, true};
+
+    CommonSettings baseSettings = commonSettings;
+    baseSettings.amplitude = 1.0f;
+    GeneratorHandle baseGen = CreateBrownianPerlinGenerator(ctx, baseSettings);
+    EXPECT_NE(baseGen, nullptr);
+
     HydraulicErosionSettings erosionSettings{};
+    erosionSettings.baseGeneratorImpl = baseGen;
 
     GeneratorHandle gen = CreateHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
     EXPECT_NE(gen, nullptr);
@@ -29,7 +36,14 @@ TEST(CoreTests, SynchronousDataAccess)
 {
     Context ctx = CreateContext();
     CommonSettings commonSettings{42, 1.0f, 5.0f, 16, false};
+
+    CommonSettings baseSettings = commonSettings;
+    baseSettings.amplitude = 1.0f;
+    GeneratorHandle baseGen = CreateBrownianPerlinGenerator(ctx, baseSettings);
+    EXPECT_NE(baseGen, nullptr);
+
     HydraulicErosionSettings erosionSettings{};
+    erosionSettings.baseGeneratorImpl = baseGen;
 
     GeneratorHandle gen = CreateHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
     EXPECT_NE(gen, nullptr);
@@ -38,7 +52,7 @@ TEST(CoreTests, SynchronousDataAccess)
     EXPECT_NE(chunkData, nullptr);
 
     float pointSample = GetPoint(gen, 10, 10);
-    (void)pointSample; 
+    (void)pointSample;
 
     DestroyContext(ctx);
 }
@@ -47,7 +61,14 @@ TEST(CoreTests, CachingAndProbing)
 {
     Context ctx = CreateContext();
     CommonSettings commonSettings{123, 1.0f, 10.0f, 16, true};
+
+    CommonSettings baseSettings = commonSettings;
+    baseSettings.amplitude = 1.0f;
+    GeneratorHandle baseGen = CreateBrownianPerlinGenerator(ctx, baseSettings);
+    EXPECT_NE(baseGen, nullptr);
+
     HydraulicErosionSettings erosionSettings{};
+    erosionSettings.baseGeneratorImpl = baseGen;
 
     GeneratorHandle gen = CreateHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
     EXPECT_NE(gen, nullptr);
@@ -74,7 +95,14 @@ TEST(CoreTests, NonCacheableProbingBehavior)
 {
     Context ctx = CreateContext();
     CommonSettings commonSettings{123, 1.0f, 10.0f, 16, false};
+
+    CommonSettings baseSettings = commonSettings;
+    baseSettings.amplitude = 1.0f;
+    GeneratorHandle baseGen = CreateBrownianPerlinGenerator(ctx, baseSettings);
+    EXPECT_NE(baseGen, nullptr);
+
     HydraulicErosionSettings erosionSettings{};
+    erosionSettings.baseGeneratorImpl = baseGen;
 
     GeneratorHandle gen = CreateHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
     EXPECT_NE(gen, nullptr);
@@ -92,7 +120,13 @@ TEST(CoreTests, ClearAllCache)
 {
     Context ctx = CreateContext();
     CommonSettings commonSettings{777, 1.0f, 1.0f, 16, true};
+
+    CommonSettings baseSettings = commonSettings;
+    baseSettings.amplitude = 1.0f;
+    GeneratorHandle baseGen = CreateBrownianPerlinGenerator(ctx, baseSettings);
+
     HydraulicErosionSettings erosionSettings{};
+    erosionSettings.baseGeneratorImpl = baseGen;
 
     GeneratorHandle gen = CreateHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
 
@@ -118,7 +152,13 @@ int main(int argc, char** argv)
 {
     Context ctx = CreateContext();
     CommonSettings commonSettings{1, 5.0f, 1.0f, 16, true};
+
+    CommonSettings baseSettings = commonSettings;
+    baseSettings.amplitude = 1.0f;
+    GeneratorHandle baseGen = CreateBrownianPerlinGenerator(ctx, baseSettings);
+
     HydraulicErosionSettings erosionSettings{};
+    erosionSettings.baseGeneratorImpl = baseGen;
 
     GeneratorHandle gen = CreateHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
     if (gen)
