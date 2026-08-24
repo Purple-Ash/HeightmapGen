@@ -146,42 +146,45 @@ void erodeHeightmap(std::vector<float>& heightmap, int32_t width, int32_t height
 	}
 }
 
-HydraulicErosionGenerator::HydraulicErosionGenerator(float scaleHorizontal, float amplitude, uint32_t resolution, const HydraulicErosionSettings* settings) 
-	: Generator(scaleHorizontal, amplitude, resolution), hydraulicErosionSettings() {
-	if (settings != nullptr) {
-		hydraulicErosionSettings = *settings;
-	}
+HydraulicErosionGeneratorImpl::HydraulicErosionGeneratorImpl(ContextImpl* ctx, const CommonSettings& commonSettings, const HydraulicErosionSettings& erosionSettings)
+    : GeneratorImpl(ctx, commonSettings), hydraulicErosionSettings(erosionSettings), baseGenerator(erosionSettings.baseGeneratorImpl) {
 }
 
-void HydraulicErosionGenerator::getHeightmap(float* heightmap, int32_t width, int32_t height, float originX, float originY) {
-	const int32_t radius = hydraulicErosionSettings.erosionRadius;
-	const int32_t paddedWidth = width + radius * 2;
-	const int32_t paddedHeight = height + radius * 2;
-	const int32_t outputSampleCount = width * height;
-	const int32_t paddedSampleCount = paddedWidth * paddedHeight;
+void HydraulicErosionGeneratorImpl::generateChunkData(int32_t chunkX, int32_t chunkY, float* buffer) {
+    int32_t res = settings.resolution;
+    const int32_t radius = hydraulicErosionSettings.erosionRadius;
+    const int32_t paddedWidth = res + radius * 2;
+    const int32_t paddedHeight = res + radius * 2;
+    const int32_t outputSampleCount = res * res;
+    const int32_t paddedSampleCount = paddedWidth * paddedHeight;
 
-	std::vector<float> paddedHeightmap;
-	paddedHeightmap.resize(paddedSampleCount);
+    std::vector<float> paddedHeightmap(paddedSampleCount);
 
-	const float paddedOriginX = originX - static_cast<float>(radius) / resolution;
-	const float paddedOriginY = originY - static_cast<float>(radius) / resolution;
+    int32_t stride = (res > 1) ? (res - 1) : 1;
+    int32_t startSampleX = chunkX * stride - radius;
+    int32_t startSampleY = chunkY * stride - radius;
 
-	BrownianPerlinGenerator baseGenerator(scaleHorizontal, 1.0f, resolution);
-	baseGenerator.getHeightmap(paddedHeightmap.data(), paddedWidth, paddedHeight, paddedOriginX, paddedOriginY);
+    for (int x = 0; x < paddedWidth; x++) {
+        for (int y = 0; y < paddedHeight; y++) {
+            float posX = static_cast<float>(startSampleX + x);
+            float posY = static_cast<float>(startSampleY + y);
+            paddedHeightmap[x * paddedHeight + y] = baseGenerator->getHeight(posX, posY);
+        }
+    }
 
-	erodeHeightmap(paddedHeightmap, paddedWidth, paddedHeight, radius, outputSampleCount, hydraulicErosionSettings);
+    erodeHeightmap(paddedHeightmap, paddedWidth, paddedHeight, radius, outputSampleCount, hydraulicErosionSettings);
 
-	for (int32_t x = 0; x < width; x++) {
-		for (int32_t y = 0; y < height; y++) {
-			heightmap[x * height + y] = paddedHeightmap[(x + radius) * paddedHeight + (y + radius)] * amplitude;
-		}
-	}
+    for (int32_t x = 0; x < res; x++) {
+        for (int32_t y = 0; y < res; y++) {
+            buffer[x * res + y] = paddedHeightmap[(x + radius) * paddedHeight + (y + radius)] * settings.amplitude;
+        }
+    }
 }
 
-float HydraulicErosionGenerator::getHeight(float posX, float posY) {
-	return 0.0f;
+float HydraulicErosionGeneratorImpl::getHeight(float posX, float posY) {
+    return 0.0f; 
 }
 
-bool HydraulicErosionGenerator::isDeterministic() {
-	return true;
+bool HydraulicErosionGeneratorImpl::isDeterministic() {
+    return true;
 }

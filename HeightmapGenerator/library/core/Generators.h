@@ -1,65 +1,73 @@
 #pragma once
 #include "HeightmapGenAPI.h"
-
+#include "HeightmapGenContext.h"
 #include <cstdint>
 #include <vector>
+#include <unordered_map>
 
-/**
- * Parent class for all other classes that will implement terrain generation
- */
-class Generator
-{
+struct GeneratorImpl {
 protected:
-	float scaleHorizontal, amplitude, vertexCount;
-	uint32_t resolution;
+    CommonSettings settings;
+    std::unordered_map<Vec2Int, float*> cache;
 
 public:
-	Generator(float scaleHorizontal, float amplitude, uint32_t resolution);
-	virtual ~Generator() = default;
+    ContextImpl* context;
 
-	virtual float getHeight(float posX, float posY) = 0;
-	virtual void getHeightmap(float* heightmap, int32_t width, int32_t height, float originX, float originY);
-	virtual bool isDeterministic() = 0;
+    GeneratorImpl(ContextImpl* ctx, const CommonSettings& settings);
+    virtual ~GeneratorImpl();
+
+    virtual float getHeight(float posX, float posY) = 0;
+    virtual void generateChunkData(int32_t chunkX, int32_t chunkY, float* buffer);
+
+    float* GetChunk(int32_t x, int32_t y);
+    float GetPoint(int32_t x, int32_t y);
+    void RequestChunk(int32_t x, int32_t y);
+    void RequestPoint(int32_t x, int32_t y);
+    float* ProbeChunk(int32_t x, int32_t y, bool* ready);
+    float ProbePoint(int32_t x, int32_t y, bool* ready);
+    void CleanChunkFromCache(int32_t x, int32_t y);
+    void ClearAllCache();
+
+    virtual bool isDeterministic() = 0;
 };
 
-class CoordinateGenerator : public Generator {
+class CoordinateGeneratorImpl : public GeneratorImpl {
 public:
-	CoordinateGenerator(float scaleHorizontal, float amplitude, uint32_t resolution) : Generator(scaleHorizontal, amplitude, resolution) {};
-	float getHeight(float posX, float posY) override;
-	bool isDeterministic() override;
+    CoordinateGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings) : GeneratorImpl(ctx, settings) {}
+    float getHeight(float posX, float posY) override;
+    bool isDeterministic() override;
 };
 
-class RandomGenerator : public Generator
-{
+class RandomGeneratorImpl : public GeneratorImpl {
 public:
-	RandomGenerator(float scaleHorizontal, float amplitude, uint32_t resolution) : Generator(scaleHorizontal, amplitude, resolution){};
-	float getHeight(float posX, float posY) override;
-	bool isDeterministic() override;
+    RandomGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings) : GeneratorImpl(ctx, settings) {}
+    float getHeight(float posX, float posY) override;
+    bool isDeterministic() override;
 };
 
-class PerlinGenerator final : public Generator
-{
+class PerlinGeneratorImpl : public GeneratorImpl {
 public:
-	PerlinGenerator(float scaleHorizontal, float amplitude, uint32_t resolution);
-	float getHeight(float posX, float posY) override;
-	bool isDeterministic() override;
+    PerlinGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings);
+    float getHeight(float posX, float posY) override;
+    bool isDeterministic() override;
 };
 
-class BrownianPerlinGenerator final : public Generator
-{
-	std::vector<PerlinGenerator> octaves;
+class BrownianPerlinGeneratorImpl : public GeneratorImpl {
+    std::vector<PerlinGeneratorImpl> octaves;
 public:
-	BrownianPerlinGenerator(float scaleHorizontal, float amplitude, uint32_t resolution);
-	float getHeight(float posX, float posY) override;
-	bool isDeterministic() override;
+    BrownianPerlinGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings);
+    float getHeight(float posX, float posY) override;
+    bool isDeterministic() override;
 };
 
-class HydraulicErosionGenerator final : public Generator
-{
-	HydraulicErosionSettings hydraulicErosionSettings;
+class HydraulicErosionGeneratorImpl : public GeneratorImpl {
+    HydraulicErosionSettings hydraulicErosionSettings;
+    // Non-owning: the base generator is created and destroyed independently by the caller
+    // via the C API (e.g. CreatePerlinGenerator), and just referenced here by handle.
+    GeneratorImpl* baseGenerator = nullptr;
 public:
-	HydraulicErosionGenerator(float scaleHorizontal, float amplitude, uint32_t resolution, const HydraulicErosionSettings* settings);
-	float getHeight(float posX, float posY) override;
-	void getHeightmap(float* heightmap, int32_t width, int32_t height, float originX, float originY) override;
-	bool isDeterministic() override;
+    HydraulicErosionGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings, const HydraulicErosionSettings& erosionSettings);
+    float getHeight(float posX, float posY) override;
+    void generateChunkData(int32_t chunkX, int32_t chunkY, float* buffer) override;
+    bool isDeterministic() override;
 };
