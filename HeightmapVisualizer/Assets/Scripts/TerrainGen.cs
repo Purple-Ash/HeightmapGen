@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
@@ -101,19 +100,19 @@ public class TerrainGen : MonoBehaviour
     {
         if (generator != IntPtr.Zero)
         {
-            HeightmapGenAPI.DestroyGenerator(generator);
+            HeightmapGenAPI.destroyGenerator(generator);
             generator = IntPtr.Zero;
         }
 
         if (baseGenerator != IntPtr.Zero)
         {
-            HeightmapGenAPI.DestroyGenerator(baseGenerator);
+            HeightmapGenAPI.destroyGenerator(baseGenerator);
             baseGenerator = IntPtr.Zero;
         }
 
         if (context != IntPtr.Zero)
         {
-            HeightmapGenAPI.DestroyContext(context);
+            HeightmapGenAPI.destroyContext(context);
             context = IntPtr.Zero;
         }
     }
@@ -122,7 +121,7 @@ public class TerrainGen : MonoBehaviour
     {
         IsGenerating = true;
 
-        context = HeightmapGenAPI.CreateContext();
+        context = HeightmapGenAPI.createContext();
         if (context == IntPtr.Zero)
         {
             Debug.LogError("Failed to create HeightmapGen context.");
@@ -143,17 +142,17 @@ public class TerrainGen : MonoBehaviour
         switch (generatorType)
         {
             case GeneratorType.Perlin:
-                generator = HeightmapGenAPI.CreatePerlinGenerator(context, commonSettings);
+                generator = HeightmapGenAPI.createPerlinGenerator(context, commonSettings);
                 break;
 
             case GeneratorType.BrownianNoise:
-                generator = HeightmapGenAPI.CreateBrownianPerlinGenerator(context, commonSettings);
+                generator = HeightmapGenAPI.createBrownianPerlinGenerator(context, commonSettings);
                 break;
 
             case GeneratorType.HydraulicErosion:
                 HeightmapGenAPI.CommonSettings baseSettings = commonSettings;
                 baseSettings.amplitude = 1.0f;
-                baseGenerator = HeightmapGenAPI.CreateBrownianPerlinGenerator(context, baseSettings);
+                baseGenerator = HeightmapGenAPI.createBrownianPerlinGenerator(context, baseSettings);
                 if (baseGenerator == IntPtr.Zero)
                 {
                     Debug.LogError("Failed to create base generator for hydraulic erosion");
@@ -179,7 +178,7 @@ public class TerrainGen : MonoBehaviour
                     initialWaterVolume = initialWaterVolume,
                     baseGeneratorImpl = baseGenerator
                 };
-                generator = HeightmapGenAPI.CreateHydraulicErosionGenerator(context, commonSettings, erosionSettings);
+                generator = HeightmapGenAPI.createHydraulicErosionGenerator(context, commonSettings, erosionSettings);
                 break;
         }
 
@@ -201,11 +200,12 @@ public class TerrainGen : MonoBehaviour
             {
                 int chunkX = i;
                 int chunkY = j;
-                IntPtr chunkBufferPtr = IntPtr.Zero;
+                int totalSamples = resolution * resolution;
+                float[] heightData = new float[totalSamples];
 
                 activeChunkTask = Task.Run(() =>
                 {
-                    chunkBufferPtr = HeightmapGenAPI.GetChunk(generator, chunkX, chunkY);
+                    HeightmapGenAPI.getChunk(generator, chunkX, chunkY, heightData);
                 });
 
                 while (!activeChunkTask.IsCompleted)
@@ -222,16 +222,6 @@ public class TerrainGen : MonoBehaviour
                     Debug.LogException(taskException);
                     continue;
                 }
-
-                if (chunkBufferPtr == IntPtr.Zero)
-                {
-                    Debug.LogWarning($"Couldn't get chunk at ({chunkX}, {chunkY})");
-                    continue;
-                }
-
-                int totalSamples = resolution * resolution;
-                float[] heightData = new float[totalSamples];
-                Marshal.Copy(chunkBufferPtr, heightData, 0, totalSamples);
 
                 for (int k = 0; k < heightData.Length; k++)
                 {

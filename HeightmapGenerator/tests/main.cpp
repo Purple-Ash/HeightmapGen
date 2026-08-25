@@ -1,8 +1,6 @@
 #include "HeightmapGenAPI.h"
 #include <gtest/gtest.h>
-
-#include "../library/core/HeightmapGenContext.h"
-
+#include <vector>
 
 TEST(CoreTests, HelloWorld)
 {
@@ -12,164 +10,156 @@ TEST(CoreTests, HelloWorld)
 
 TEST(CoreTests, ContextAndGeneratorImplLifecycle)
 {
-    Context ctx = CreateContext();
+    Context ctx = createContext();
     EXPECT_NE(ctx, nullptr);
 
     CommonSettings commonSettings{0, 1.0f, 1.0f, 16, true};
 
     CommonSettings baseSettings = commonSettings;
     baseSettings.amplitude = 1.0f;
-    GeneratorHandle baseGen = CreateBrownianPerlinGenerator(ctx, baseSettings);
+    Generator baseGen = createBrownianPerlinGenerator(ctx, baseSettings);
     EXPECT_NE(baseGen, nullptr);
 
     HydraulicErosionSettings erosionSettings{};
     erosionSettings.baseGeneratorImpl = baseGen;
 
-    GeneratorHandle gen = CreateHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
+    Generator gen = createHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
     EXPECT_NE(gen, nullptr);
 
-    DestroyGenerator(gen);
-    DestroyContext(ctx);
+    destroyGenerator(gen);
+    destroyContext(ctx);
 }
 
 TEST(CoreTests, SynchronousDataAccess)
 {
-    Context ctx = CreateContext();
+    Context ctx = createContext();
     CommonSettings commonSettings{42, 1.0f, 5.0f, 16, false};
 
     CommonSettings baseSettings = commonSettings;
     baseSettings.amplitude = 1.0f;
-    GeneratorHandle baseGen = CreateBrownianPerlinGenerator(ctx, baseSettings);
+    Generator baseGen = createBrownianPerlinGenerator(ctx, baseSettings);
     EXPECT_NE(baseGen, nullptr);
 
     HydraulicErosionSettings erosionSettings{};
     erosionSettings.baseGeneratorImpl = baseGen;
 
-    GeneratorHandle gen = CreateHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
+    Generator gen = createHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
     EXPECT_NE(gen, nullptr);
 
-    float* chunkData = GetChunk(gen, 1, 1);
-    EXPECT_NE(chunkData, nullptr);
+    std::vector<float> chunkData(commonSettings.resolution * commonSettings.resolution);
+    getChunk(gen, 1, 1, chunkData.data());
 
-    float pointSample = GetPoint(gen, 10, 10);
+    float pointSample = getPoint(gen, 10, 10);
     (void)pointSample;
 
-    DestroyContext(ctx);
+    destroyContext(ctx);
 }
 
 TEST(CoreTests, CachingAndProbing)
 {
-    Context ctx = CreateContext();
+    Context ctx = createContext();
     CommonSettings commonSettings{123, 1.0f, 10.0f, 16, true};
 
     CommonSettings baseSettings = commonSettings;
     baseSettings.amplitude = 1.0f;
-    GeneratorHandle baseGen = CreateBrownianPerlinGenerator(ctx, baseSettings);
+    Generator baseGen = createBrownianPerlinGenerator(ctx, baseSettings);
     EXPECT_NE(baseGen, nullptr);
 
     HydraulicErosionSettings erosionSettings{};
     erosionSettings.baseGeneratorImpl = baseGen;
 
-    GeneratorHandle gen = CreateHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
+    Generator gen = createHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
     EXPECT_NE(gen, nullptr);
 
-    bool ready = false;
+    std::vector<float> chunkData(commonSettings.resolution * commonSettings.resolution);
+    EXPECT_FALSE(probeChunk(gen, 1, 1, chunkData.data()));
 
-    EXPECT_EQ(ProbeChunk(gen, 1, 1, &ready), nullptr);
-    EXPECT_FALSE(ready);
+    requestChunk(gen, 1, 1);
 
-    RequestChunk(gen, 1, 1);
+    EXPECT_TRUE(probeChunk(gen, 1, 1, chunkData.data()));
 
-    float* cachedData = ProbeChunk(gen, 1, 1, &ready);
-    EXPECT_TRUE(ready);
-    EXPECT_NE(cachedData, nullptr);
+    cleanChunkFromCache(gen, 1, 1);
+    EXPECT_FALSE(probeChunk(gen, 1, 1, chunkData.data()));
 
-    CleanChunkFromCache(gen, 1, 1);
-    EXPECT_EQ(ProbeChunk(gen, 1, 1, &ready), nullptr);
-    EXPECT_FALSE(ready);
-
-    DestroyContext(ctx);
+    destroyContext(ctx);
 }
 
 TEST(CoreTests, NonCacheableProbingBehavior)
 {
-    Context ctx = CreateContext();
+    Context ctx = createContext();
     CommonSettings commonSettings{123, 1.0f, 10.0f, 16, false};
 
     CommonSettings baseSettings = commonSettings;
     baseSettings.amplitude = 1.0f;
-    GeneratorHandle baseGen = CreateBrownianPerlinGenerator(ctx, baseSettings);
+    Generator baseGen = createBrownianPerlinGenerator(ctx, baseSettings);
     EXPECT_NE(baseGen, nullptr);
 
     HydraulicErosionSettings erosionSettings{};
     erosionSettings.baseGeneratorImpl = baseGen;
 
-    GeneratorHandle gen = CreateHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
+    Generator gen = createHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
     EXPECT_NE(gen, nullptr);
 
-    bool ready = true;
-    RequestChunk(gen, 1, 1);
+    std::vector<float> chunkData(commonSettings.resolution * commonSettings.resolution);
+    requestChunk(gen, 1, 1);
 
-    EXPECT_EQ(ProbeChunk(gen, 1, 1, &ready), nullptr);
-    EXPECT_FALSE(ready);
+    EXPECT_FALSE(probeChunk(gen, 1, 1, chunkData.data()));
 
-    DestroyContext(ctx);
+    destroyContext(ctx);
 }
 
 TEST(CoreTests, ClearAllCache)
 {
-    Context ctx = CreateContext();
+    Context ctx = createContext();
     CommonSettings commonSettings{777, 1.0f, 1.0f, 16, true};
 
     CommonSettings baseSettings = commonSettings;
     baseSettings.amplitude = 1.0f;
-    GeneratorHandle baseGen = CreateBrownianPerlinGenerator(ctx, baseSettings);
+    Generator baseGen = createBrownianPerlinGenerator(ctx, baseSettings);
 
     HydraulicErosionSettings erosionSettings{};
     erosionSettings.baseGeneratorImpl = baseGen;
 
-    GeneratorHandle gen = CreateHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
+    Generator gen = createHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
 
-    RequestChunk(gen, 0, 0);
-    RequestChunk(gen, 1, 1);
+    requestChunk(gen, 0, 0);
+    requestChunk(gen, 1, 1);
 
-    bool ready0 = false, ready1 = false;
-    EXPECT_NE(ProbeChunk(gen, 0, 0, &ready0), nullptr);
-    EXPECT_NE(ProbeChunk(gen, 1, 1, &ready1), nullptr);
-    EXPECT_TRUE(ready0 && ready1);
+    std::vector<float> chunkData0(commonSettings.resolution * commonSettings.resolution);
+    std::vector<float> chunkData1(commonSettings.resolution * commonSettings.resolution);
+    EXPECT_TRUE(probeChunk(gen, 0, 0, chunkData0.data()));
+    EXPECT_TRUE(probeChunk(gen, 1, 1, chunkData1.data()));
 
-    ClearAllCache(gen);
+    clearAllCache(gen);
 
-    EXPECT_EQ(ProbeChunk(gen, 0, 0, &ready0), nullptr);
-    EXPECT_FALSE(ready0);
-    EXPECT_EQ(ProbeChunk(gen, 1, 1, &ready1), nullptr);
-    EXPECT_FALSE(ready1);
+    EXPECT_FALSE(probeChunk(gen, 0, 0, chunkData0.data()));
+    EXPECT_FALSE(probeChunk(gen, 1, 1, chunkData1.data()));
 
-    DestroyContext(ctx);
+    destroyContext(ctx);
 }
 
 int main(int argc, char** argv)
 {
-    Context ctx = CreateContext();
+    Context ctx = createContext();
     CommonSettings commonSettings{1, 5.0f, 1.0f, 16, true};
 
     CommonSettings baseSettings = commonSettings;
     baseSettings.amplitude = 1.0f;
-    GeneratorHandle baseGen = CreateBrownianPerlinGenerator(ctx, baseSettings);
+    Generator baseGen = createBrownianPerlinGenerator(ctx, baseSettings);
 
     HydraulicErosionSettings erosionSettings{};
     erosionSettings.baseGeneratorImpl = baseGen;
 
-    GeneratorHandle gen = CreateHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
+    Generator gen = createHydraulicErosionGenerator(ctx, commonSettings, erosionSettings);
     if (gen)
     {
-        RequestChunk(gen, 1, 1);
-        RequestChunk(gen, 1, 2);
+        requestChunk(gen, 1, 1);
+        requestChunk(gen, 1, 2);
     }
 
     ::testing::InitGoogleTest(&argc, argv);
     int result = RUN_ALL_TESTS();
 
-    DestroyContext(ctx);
+    destroyContext(ctx);
     return result;
 }
