@@ -1,8 +1,6 @@
 #include "HeightmapGenAPI.h"
 #include <gtest/gtest.h>
-
-#include "../library/core/HeightmapGenContext.h"
-
+#include "onnxruntime_cxx_api.h"
 
 TEST(CoreTests, HelloWorld)
 {
@@ -145,6 +143,32 @@ TEST(CoreTests, ClearAllCache)
     EXPECT_EQ(ProbeChunk(gen, 1, 1, &ready1), nullptr);
     EXPECT_FALSE(ready1);
 
+    DestroyContext(ctx);
+}
+
+TEST(OrtModelTests, BPModelSmokeTest)
+{
+    Context ctx = CreateContext();
+    // not really caring about anything other than cache
+    // resolution will be overriden based on model anyway
+    CommonSettings commonSettings{};
+    commonSettings.cacheable = true;
+    
+    Ort::Env env(OrtLoggingLevel::ORT_LOGGING_LEVEL_WARNING, "OrtEnv");
+    Ort::SessionOptions sessionOptions;
+    sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_DISABLE_ALL);
+    const char* modelPath = "../../models/best_step6126.onnx";
+
+    GeneratorHandle gen = CreateBPGenerator(ctx, commonSettings, env, modelPath, sessionOptions);
+    EXPECT_NE(gen, nullptr);
+
+    float* chunkData = GetChunk(gen, 1, 1);
+    EXPECT_NE(chunkData, nullptr);
+
+    float pointSample = GetPoint(gen, 10, 10);
+    (void)pointSample;
+
+    DestroyGenerator(gen);
     DestroyContext(ctx);
 }
 

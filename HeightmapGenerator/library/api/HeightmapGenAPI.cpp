@@ -36,6 +36,20 @@ HG_API GeneratorHandle CreateHydraulicErosionGenerator(Context ctx, CommonSettin
     return gen;
 }
 
+HG_API GeneratorHandle CreateBPGenerator(
+    Context ctx, 
+    CommonSettings commonSettings,
+    const Ort::Env &env,
+    const char* modelPath,
+    const Ort::SessionOptions &sessionOptions
+) {
+    if (!ctx || !env) return nullptr;
+    GeneratorHandle gen = new BPGeneratorImpl(ctx, commonSettings, env, sessionOptions, modelPath);
+    ctx->GeneratorImpls.push_back(gen);
+    return gen;
+}
+
+
 HG_API void DestroyGenerator(GeneratorHandle Generator) {
     if (Generator) {
         if (Generator->context) {
