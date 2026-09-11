@@ -5,6 +5,10 @@ set(CMAKE_CXX_STANDARD 20)
 
 include(FetchContent)
 
+# ------------------------------------------------------------
+# GoogleTest
+# ------------------------------------------------------------
+
 FetchContent_Declare(
     googletest
     URL https://github.com/google/googletest/archive/refs/tags/v1.17.0.zip
@@ -13,9 +17,34 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-file(GLOB_RECURSE  LIBRARY_SOURCES library/*.cpp)
-file(GLOB_RECURSE  TEST_SOURCES tests/*.cpp)
+# ------------------------------------------------------------
+# ONNX Runtime
+# ------------------------------------------------------------
 
+if(WIN32)
+    set(ONNXRUNTIME_ROOT "../third-party/onnxruntime")
+else()
+    set(ONNXRUNTIME_ROOT "/opt/onnxruntime")
+endif()
+
+add_library(onnxruntime SHARED IMPORTED)
+
+set_target_properties(onnxruntime PROPERTIES
+    IMPORTED_LOCATION
+        "${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so"
+
+    INTERFACE_INCLUDE_DIRECTORIES
+        "${ONNXRUNTIME_ROOT}/include"
+
+    BUILD_RPATH
+        "${ONNXRUNTIME_ROOT}/lib"
+)
+
+# ------------------------------------------------------------
+# HeightmapGen
+# ------------------------------------------------------------
+
+file(GLOB_RECURSE  LIBRARY_SOURCES library/*.cpp)
 
 add_library(HeightmapGen SHARED
     ${LIBRARY_SOURCES}
@@ -28,6 +57,15 @@ target_include_directories(HeightmapGen
     PRIVATE ${CMAKE_SOURCE_DIR}/library/core
 )
 
+target_link_libraries(HeightmapGen
+    PUBLIC onnxruntime
+)
+
+# ------------------------------------------------------------
+# Tests
+# ------------------------------------------------------------
+
+file(GLOB_RECURSE  TEST_SOURCES tests/*.cpp)
 
 add_executable(Tests
     ${TEST_SOURCES}
