@@ -62,6 +62,9 @@ public:
 
 class BrownianPerlinGeneratorImpl : public GeneratorImpl {
     std::vector<PerlinGeneratorImpl> octaves;
+    const float lacunarity = 2.0f;
+    const float persistence = 0.5f;
+    const unsigned int octaveCount = 4;
 
     float getHeight(Vec2Int pos) override;
 

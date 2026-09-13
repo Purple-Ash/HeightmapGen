@@ -83,33 +83,29 @@ float PerlinGeneratorImpl::getHeight(Vec2Int pos) {
 
 
 BrownianPerlinGeneratorImpl::BrownianPerlinGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings) : GeneratorImpl(ctx, settings) {
-	octaves.emplace_back(ctx, settings);
-	octaves.emplace_back(ctx, settings);
-	octaves.emplace_back(ctx, settings);
-	octaves.emplace_back(ctx, settings);
+    float frequency = 1.0f;
+    float currentAmplitude = 1.0f;
+    for(int i = 0; i < octaveCount; i++){
+
+        CommonSettings newSettings = {
+                .seed = settings.seed,
+                .scale = settings.scale * frequency,
+                .amplitude = settings.amplitude * currentAmplitude,
+                .resolution = settings.resolution,
+                .cacheable = settings.cacheable
+        };
+        octaves.emplace_back(ctx, newSettings);
+        frequency *= lacunarity;
+        currentAmplitude *= persistence;
+    }
 }
 
 float BrownianPerlinGeneratorImpl::getHeight(Vec2Int pos) {
     float totalHeight = 0.0f;
-    float frequency = 1.0f;
-    float currentAmplitude = 1.0f;
 
-    const float lacunarity = 2.0f;
-    const float persistence = 0.5f;
-
-    for (int i = 0; i < octaves.size(); i++) {
-        CommonSettings octaveSettings = settings;
-        octaveSettings.scale = settings.scale * frequency;
-        octaveSettings.amplitude = currentAmplitude;
-		octaveSettings.cacheable = false;
-
-        PerlinGeneratorImpl octaveGen(context, octaveSettings);
-		totalHeight += octaveGen.getPoint(pos);
-
-        currentAmplitude *= persistence;
-        frequency *= lacunarity;
+    for (auto & octave : octaves) {
+		totalHeight += octave.getPoint(pos);
     }
-
     return totalHeight * settings.amplitude;
 }
 

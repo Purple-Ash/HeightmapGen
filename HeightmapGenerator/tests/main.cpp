@@ -1,6 +1,10 @@
 #include "HeightmapGenAPI.h"
+#include "../library/core/Helpers.h"
 #include <gtest/gtest.h>
 #include <vector>
+
+#include "../library/core/Generators.h"
+#include "../library/core/Generators.cpp"
 
 TEST(CoreTests, HelloWorld)
 {
@@ -136,6 +140,64 @@ TEST(CoreTests, ClearAllCache)
     EXPECT_FALSE(probeChunk(gen, 1, 1, chunkData1.data()));
 
     destroyContext(ctx);
+}
+
+TEST(CoreTests, GetChunks5by5_Using_getChunk_and_getPoint){
+    constexpr int resolution = 5;
+    const int stride = resolution - 1;
+    Context ctx = createContext();
+    CommonSettings commonSettings{777, 1.0f, 1.0f, resolution, true};
+    Generator baseGen = createBrownianPerlinGenerator(ctx, commonSettings);
+
+    //cast from opaque handle to be able to test pointToChunk
+    auto* impl = static_cast<GeneratorImpl*>(baseGen);
+
+    constexpr int radius = 1;
+    constexpr int chunksPerSide = radius * 2 + 1;
+    constexpr int chunkCount = chunksPerSide * chunksPerSide;
+    float buffer[resolution * resolution * chunkCount];
+
+    for(int i = -radius; i <= radius; i++){
+        for(int j = -radius; j <= radius; j++){
+            const int chunkIndex = (i + radius) + (j + radius) * chunksPerSide;
+            getChunk(baseGen,i,j, &buffer[resolution*resolution*chunkIndex]);
+        }
+    }
+
+    //it could be `x/y <= stride * (radious + 1)` if we checked for existance of cache
+    //in neighbouring chunk when checking values right on the border of chunk.
+    //we would need to hold reference to 4 potential borders (or 8 if we really want 4 points
+    //on the vertices of the chunks)
+    for(int y = -stride * radius; y < stride * (radius + 1); y++){
+        for(int x = -stride * radius; x < stride * (radius + 1); x++){
+            float point = getPoint(baseGen, x, y);
+            Vec2Int chunk = impl->pointToChunk({x, y});
+
+            ASSERT_GE(chunk.x, -radius);
+            ASSERT_LE(chunk.x, radius);
+            ASSERT_GE(chunk.y, -radius);
+            ASSERT_LE(chunk.y, radius);
+
+            const int chunkIndex = (chunk.x + radius) + (chunk.y + radius) * chunksPerSide;
+
+            const int localX = x - chunk.x * stride;
+            const int localY = y - chunk.y * stride;
+
+            ASSERT_GE(localX, 0);
+            ASSERT_LT(localX, resolution);
+            ASSERT_GE(localY, 0);
+            ASSERT_LT(localY, resolution);
+
+            const int pointIndex = localX * resolution + localY;
+            const float chunkPoint = buffer[
+                    chunkIndex *
+                    resolution *
+                    resolution +
+                    pointIndex];
+
+            EXPECT_FLOAT_EQ(point, chunkPoint);
+        }
+    }
 }
 
 int main(int argc, char** argv)

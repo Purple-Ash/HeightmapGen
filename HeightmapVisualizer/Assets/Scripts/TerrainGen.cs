@@ -198,8 +198,8 @@ public class TerrainGen : MonoBehaviour
         {
             for (int j = 0; j < chunkCount.y; j++)
             {
-                int chunkX = i;
-                int chunkY = j;
+                int chunkX = i - chunkCount.x / 2;
+                int chunkY = j - chunkCount.y / 2;
                 int totalSamples = resolution * resolution;
                 float[] heightData = new float[totalSamples];
 
