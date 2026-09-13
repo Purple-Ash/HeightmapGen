@@ -12,7 +12,7 @@
 #endif
 
 typedef struct ContextImpl* Context;
-typedef struct GeneratorImpl* GeneratorHandle;
+typedef struct GeneratorImpl* Generator;
 
 struct CommonSettings
 {
@@ -38,28 +38,27 @@ struct HydraulicErosionSettings
     float gravity = 4.0f;
     float initialSpeed = 1.0f;
     float initialWaterVolume = 1.0f;
-	GeneratorHandle baseGeneratorImpl = nullptr;
+	Generator baseGeneratorImpl = nullptr;
 };
 
 extern "C" {
     HG_API const char* smokeTest(const char* data);
 
-    HG_API Context CreateContext();
-    HG_API void DestroyContext(Context ctx);
+    HG_API Context createContext();
+    HG_API void destroyContext(Context ctx);
 
-    HG_API GeneratorHandle CreateHydraulicErosionGenerator(Context ctx, CommonSettings commonSettings, HydraulicErosionSettings erosionSettings);
-    HG_API GeneratorHandle CreatePerlinGenerator(Context ctx, CommonSettings commonSettings);
-    HG_API GeneratorHandle CreateBrownianPerlinGenerator(Context ctx, CommonSettings commonSettings);
-    HG_API void DestroyGenerator(GeneratorHandle GeneratorImpl);
+    HG_API Generator createHydraulicErosionGenerator(Context ctx, CommonSettings commonSettings, HydraulicErosionSettings erosionSettings);
+    HG_API Generator createPerlinGenerator(Context ctx, CommonSettings commonSettings);
+    HG_API Generator createBrownianPerlinGenerator(Context ctx, CommonSettings commonSettings);
+    HG_API void destroyGenerator(Generator generator);
 
-    HG_API float* GetChunk(GeneratorHandle GeneratorImpl, int32_t x, int32_t y);
-    HG_API float GetPoint(GeneratorHandle GeneratorImpl, int32_t x, int32_t y);
+    HG_API void getChunk(Generator generator, int32_t x, int32_t y, float* buffer);
+    HG_API float getPoint(Generator generator, int32_t x, int32_t y);
+    HG_API void requestChunk(Generator generator, int32_t x, int32_t y);
+    HG_API void requestPoint(Generator generator, int32_t x, int32_t y);
+    HG_API bool probeChunk(Generator generator, int32_t x, int32_t y, float* buffer);
+    HG_API bool probePoint(Generator generator, int32_t x, int32_t y, float* point);
 
-    HG_API void RequestChunk(GeneratorHandle GeneratorImpl, int32_t x, int32_t y);
-    HG_API void RequestPoint(GeneratorHandle GeneratorImpl, int32_t x, int32_t y);
-    HG_API float* ProbeChunk(GeneratorHandle GeneratorImpl, int32_t x, int32_t y, bool* ready);
-    HG_API float ProbePoint(GeneratorHandle GeneratorImpl, int32_t x, int32_t y, bool* ready);
-
-    HG_API void CleanChunkFromCache(GeneratorHandle GeneratorImpl, int32_t x, int32_t y);
-    HG_API void ClearAllCache(GeneratorHandle GeneratorImpl);
+    HG_API void cleanChunkFromCache(Generator generator, int32_t x, int32_t y);
+    HG_API void clearAllCache(Generator generator);
 }

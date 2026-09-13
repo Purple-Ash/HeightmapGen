@@ -7,73 +7,73 @@ HG_API const char* smokeTest(const char* data) {
     return data;
 }
 
-HG_API Context CreateContext() {
+HG_API Context createContext() {
     return new ContextImpl();
 }
 
-HG_API void DestroyContext(Context ctx) {
+HG_API void destroyContext(Context ctx) {
     if (ctx) delete ctx;
 }
 
-HG_API GeneratorHandle CreatePerlinGenerator(Context ctx, CommonSettings commonSettings) {
+HG_API Generator createPerlinGenerator(Context ctx, CommonSettings commonSettings) {
     if (!ctx) return nullptr;
-    GeneratorHandle gen = new PerlinGeneratorImpl(ctx, commonSettings);
-    ctx->GeneratorImpls.push_back(gen);
+    Generator gen = new PerlinGeneratorImpl(ctx, commonSettings);
+    ctx->generators.push_back(gen);
     return gen;
 }
 
-HG_API GeneratorHandle CreateBrownianPerlinGenerator(Context ctx, CommonSettings commonSettings) {
+HG_API Generator createBrownianPerlinGenerator(Context ctx, CommonSettings commonSettings) {
     if (!ctx) return nullptr;
-    GeneratorHandle gen = new BrownianPerlinGeneratorImpl(ctx, commonSettings);
-    ctx->GeneratorImpls.push_back(gen);
+    Generator gen = new BrownianPerlinGeneratorImpl(ctx, commonSettings);
+    ctx->generators.push_back(gen);
     return gen;
 }
 
-HG_API GeneratorHandle CreateHydraulicErosionGenerator(Context ctx, CommonSettings commonSettings, HydraulicErosionSettings erosionSettings) {
+HG_API Generator createHydraulicErosionGenerator(Context ctx, CommonSettings commonSettings, HydraulicErosionSettings erosionSettings) {
     if (!ctx || !erosionSettings.baseGeneratorImpl) return nullptr;
-    GeneratorHandle gen = new HydraulicErosionGeneratorImpl(ctx, commonSettings, erosionSettings);
-    ctx->GeneratorImpls.push_back((gen));
+    Generator gen = new HydraulicErosionGeneratorImpl(ctx, commonSettings, erosionSettings);
+    ctx->generators.push_back(gen);
     return gen;
 }
 
-HG_API void DestroyGenerator(GeneratorHandle Generator) {
-    if (Generator) {
-        if (Generator->context) {
-            auto& gens = Generator->context->GeneratorImpls;
-            gens.erase(std::remove(gens.begin(), gens.end(), Generator), gens.end());
+HG_API void destroyGenerator(Generator generator) {
+    if (generator) {
+        if (generator->getContext()) {
+            auto& gens = generator->getContext()->generators;
+            gens.erase(std::remove(gens.begin(), gens.end(), generator), gens.end());
         }
-        delete Generator;
+        delete generator;
     }
 }
 
-HG_API float* GetChunk(GeneratorHandle GeneratorImpl, int32_t x, int32_t y) {
-    return GeneratorImpl ? GeneratorImpl->GetChunk(x, y) : nullptr;
+HG_API void getChunk(Generator generator, int32_t x, int32_t y, float* buffer) {
+    if (generator) generator->getChunk({ x, y }, buffer);
 }
 
-HG_API float GetPoint(GeneratorHandle GeneratorImpl, int32_t x, int32_t y) {
-    return GeneratorImpl ? GeneratorImpl->GetPoint(x, y) : 0.0f;
+HG_API float getPoint(Generator generator, int32_t x, int32_t y) {
+    return generator ? generator->getPoint({ x, y }) : 0.0f;
 }
 
-HG_API void RequestChunk(GeneratorHandle GeneratorImpl, int32_t x, int32_t y) {
-    if (GeneratorImpl) GeneratorImpl->RequestChunk(x, y);
+HG_API void requestChunk(Generator generator, int32_t x, int32_t y) {
+    if (generator) generator->requestChunk({ x, y });
 }
 
-HG_API void RequestPoint(GeneratorHandle GeneratorImpl, int32_t x, int32_t y) {
-    if (GeneratorImpl) GeneratorImpl->RequestPoint(x, y);
+HG_API void requestPoint(Generator generator, int32_t x, int32_t y) {
+    if (generator) generator->requestPoint({ x, y });
 }
 
-HG_API float* ProbeChunk(GeneratorHandle GeneratorImpl, int32_t x, int32_t y, bool* ready) {
-    return GeneratorImpl ? GeneratorImpl->ProbeChunk(x, y, ready) : nullptr;
+HG_API bool probeChunk(Generator generator, int32_t x, int32_t y, float* buffer) {
+    return generator ? generator->probeChunk({ x, y }, buffer) : false;
 }
 
-HG_API float ProbePoint(GeneratorHandle GeneratorImpl, int32_t x, int32_t y, bool* ready) {
-    return GeneratorImpl ? GeneratorImpl->ProbePoint(x, y, ready) : 0.0f;
+HG_API bool probePoint(Generator generator, int32_t x, int32_t y, float* point) {
+    return generator ? generator->probePoint({ x, y }, point) : false;
 }
 
-HG_API void CleanChunkFromCache(GeneratorHandle GeneratorImpl, int32_t x, int32_t y) {
-    if (GeneratorImpl) GeneratorImpl->CleanChunkFromCache(x, y);
+HG_API void cleanChunkFromCache(Generator generator, int32_t x, int32_t y) {
+    if (generator) generator->cleanChunkFromCache({ x, y });
 }
 
-HG_API void ClearAllCache(GeneratorHandle GeneratorImpl) {
-    if (GeneratorImpl) GeneratorImpl->ClearAllCache();
+HG_API void clearAllCache(Generator generator) {
+    if (generator) generator->clearAllCache();
 }

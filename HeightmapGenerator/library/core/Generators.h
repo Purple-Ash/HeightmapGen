@@ -4,70 +4,82 @@
 #include <cstdint>
 #include <vector>
 #include <unordered_map>
+#include <span>
 
 struct GeneratorImpl {
 protected:
+    ContextImpl* context;
     CommonSettings settings;
-    std::unordered_map<Vec2Int, float*> cache;
+    std::unordered_map<Vec2Int, std::vector<float>> cache;
+
+    virtual float getHeight(Vec2Int pos) = 0;
+    virtual void generateChunkData(Vec2Int chunkPos, float* buffer);
 
 public:
-    ContextImpl* context;
-
     GeneratorImpl(ContextImpl* ctx, const CommonSettings& settings);
     virtual ~GeneratorImpl();
 
-    virtual float getHeight(float posX, float posY) = 0;
-    virtual void generateChunkData(int32_t chunkX, int32_t chunkY, float* buffer);
-
-    float* GetChunk(int32_t x, int32_t y);
-    float GetPoint(int32_t x, int32_t y);
-    void RequestChunk(int32_t x, int32_t y);
-    void RequestPoint(int32_t x, int32_t y);
-    float* ProbeChunk(int32_t x, int32_t y, bool* ready);
-    float ProbePoint(int32_t x, int32_t y, bool* ready);
-    void CleanChunkFromCache(int32_t x, int32_t y);
-    void ClearAllCache();
+    void getChunk(Vec2Int pos, float* buffer);
+    float getPoint(Vec2Int pos);
+    void requestChunk(Vec2Int pos);
+    void requestPoint(Vec2Int pos);
+    bool probeChunk(Vec2Int pos, float* buffer);
+    bool probePoint(Vec2Int pos, float* point);
+    void cleanChunkFromCache(Vec2Int pos);
+    void clearAllCache();
 
     virtual bool isDeterministic() = 0;
+
+    ContextImpl* getContext() const;
+    const CommonSettings& getSettings() const;
+
+    Vec2Int pointToChunk(Vec2Int point) const;
 };
 
 class CoordinateGeneratorImpl : public GeneratorImpl {
+    float getHeight(Vec2Int pos) override;
+
 public:
     CoordinateGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings) : GeneratorImpl(ctx, settings) {}
-    float getHeight(float posX, float posY) override;
     bool isDeterministic() override;
 };
 
 class RandomGeneratorImpl : public GeneratorImpl {
+    float getHeight(Vec2Int pos) override;
+
 public:
     RandomGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings) : GeneratorImpl(ctx, settings) {}
-    float getHeight(float posX, float posY) override;
     bool isDeterministic() override;
 };
 
 class PerlinGeneratorImpl : public GeneratorImpl {
+    float getHeight(Vec2Int pos) override;
+
 public:
     PerlinGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings);
-    float getHeight(float posX, float posY) override;
     bool isDeterministic() override;
 };
 
 class BrownianPerlinGeneratorImpl : public GeneratorImpl {
     std::vector<PerlinGeneratorImpl> octaves;
+    const float lacunarity = 2.0f;
+    const float persistence = 0.5f;
+    const unsigned int octaveCount = 4;
+
+    float getHeight(Vec2Int pos) override;
+
 public:
     BrownianPerlinGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings);
-    float getHeight(float posX, float posY) override;
     bool isDeterministic() override;
 };
 
 class HydraulicErosionGeneratorImpl : public GeneratorImpl {
     HydraulicErosionSettings hydraulicErosionSettings;
-    // Non-owning: the base generator is created and destroyed independently by the caller
-    // via the C API (e.g. CreatePerlinGenerator), and just referenced here by handle.
-    GeneratorImpl* baseGenerator = nullptr;
+
+    float getHeight(Vec2Int pos) override;
+    void generateChunkData(Vec2Int chunkPos, float* buffer) override;
+
 public:
     HydraulicErosionGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings, const HydraulicErosionSettings& erosionSettings);
-    float getHeight(float posX, float posY) override;
-    void generateChunkData(int32_t chunkX, int32_t chunkY, float* buffer) override;
     bool isDeterministic() override;
 };

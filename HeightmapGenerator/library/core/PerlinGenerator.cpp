@@ -1,13 +1,11 @@
 #include "Generators.h"
 #include "Helpers.h"
 
-float lerp(float a, float b, float t)
-{
+float lerp(float a, float b, float t) {
 	return a + t * (b - a);
 }
 
-float grad(int hash, float x, float y)
-{
+float grad(int hash, float x, float y) {
 	int h = hash & 7;
 	float u = h < 4 ? x : y;
 	float v = h < 4 ? y : x;
@@ -15,15 +13,13 @@ float grad(int hash, float x, float y)
 	return ((h & 1) ? -u : u) + ((h & 2) ? -2.0f * v : 2.0f * v);
 }
 
-float fade(float t)
-{
+float fade(float t) {
 	return t * t * t * (t * (t * 6 - 15) + 10);
 }
 
 int p[512];
 
-void initPermutation()
-{
+void initPermutation() {
 	int permutation[256] = {
 		151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,
 		140,36,103,30,69,142,8,99,37,240,21,10,23,190,6,148,
@@ -55,16 +51,14 @@ PerlinGeneratorImpl::PerlinGeneratorImpl(ContextImpl* ctx, const CommonSettings&
     initPermutation();
 }
 
-bool PerlinGeneratorImpl::isDeterministic()
-{
+bool PerlinGeneratorImpl::isDeterministic() {
 	return true;
 }
 
 
-float PerlinGeneratorImpl::getHeight(float posX, float posY)
-{
-	float x = posX * settings.scale;
-	float y = posY * settings.scale;
+float PerlinGeneratorImpl::getHeight(Vec2Int pos) {
+	float x = pos.x * settings.scale;
+	float y = pos.y * settings.scale;
 
 	int X = (int)floor(x) & 255;
 	int Y = (int)floor(y) & 255;
@@ -88,35 +82,30 @@ float PerlinGeneratorImpl::getHeight(float posX, float posY)
 }
 
 
-BrownianPerlinGeneratorImpl::BrownianPerlinGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings) : GeneratorImpl(ctx, settings)
-{
-	octaves.emplace_back(ctx, settings);
-	octaves.emplace_back(ctx, settings);
-	octaves.emplace_back(ctx, settings);
-	octaves.emplace_back(ctx, settings);
-}
-
-float BrownianPerlinGeneratorImpl::getHeight(float posX, float posY)
-{
-    float totalHeight = 0.0f;
+BrownianPerlinGeneratorImpl::BrownianPerlinGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings) : GeneratorImpl(ctx, settings) {
     float frequency = 1.0f;
     float currentAmplitude = 1.0f;
+    for(int i = 0; i < octaveCount; i++){
 
-    const float lacunarity = 2.0f;
-    const float persistence = 0.5f;
-
-    for (int i = 0; i < octaves.size(); i++) {
-        CommonSettings octaveSettings = settings;
-        octaveSettings.scale = settings.scale * frequency;
-        octaveSettings.amplitude = currentAmplitude;
-
-        PerlinGeneratorImpl octaveGen(context, octaveSettings);
-        totalHeight += octaveGen.getHeight(posX, posY);
-
-        currentAmplitude *= persistence;
+        CommonSettings newSettings = {
+                .seed = settings.seed,
+                .scale = settings.scale * frequency,
+                .amplitude = settings.amplitude * currentAmplitude,
+                .resolution = settings.resolution,
+                .cacheable = settings.cacheable
+        };
+        octaves.emplace_back(ctx, newSettings);
         frequency *= lacunarity;
+        currentAmplitude *= persistence;
     }
+}
 
+float BrownianPerlinGeneratorImpl::getHeight(Vec2Int pos) {
+    float totalHeight = 0.0f;
+
+    for (auto & octave : octaves) {
+		totalHeight += octave.getPoint(pos);
+    }
     return totalHeight * settings.amplitude;
 }
 
