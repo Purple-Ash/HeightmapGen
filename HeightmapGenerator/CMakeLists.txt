@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 2.8...4.0)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 project(HeightmapGen)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -32,17 +33,38 @@ add_executable(Tests
     ${TEST_SOURCES}
 )
 
-find_package(SDL2)
+if (NOT DEFINED ENV{CI})
+	add_executable(view
+			view/view.cpp
+	)
 
-if (SDL2_FOUND)
-    add_executable(view
-            view/view.cpp
-    )
+	FetchContent_Declare(
+			winx
+			GIT_REPOSITORY https://github.com/dark-tree/winx
+			GIT_TAG        6bc5283274e4ceb714a8f551bc446aaa2991ec53
+	)
 
-    target_link_libraries(view PRIVATE
-            SDL2::SDL2
-            HeightmapGen
-    )
+	FetchContent_Declare(
+			glad
+			GIT_REPOSITORY https://github.com/Dav1dde/glad
+			GIT_TAG        v0.1.36
+	)
+
+	set(GLAD_PROFILE "core" CACHE STRING "OpenGL profile")
+	set(GLAD_GENERATOR "c" CACHE STRING "Language to generate the binding for")
+
+	FetchContent_MakeAvailable(winx glad)
+
+	target_link_libraries(view PRIVATE
+			HeightmapGen
+			winx
+			glad
+	)
+
+	target_include_directories(view PRIVATE
+			${winx_SOURCE_DIR}
+			${GLAD_INCLUDE_DIRS}
+	)
 endif()
 
 find_package(Threads REQUIRED)
