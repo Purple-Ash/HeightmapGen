@@ -71,9 +71,9 @@ public:
 		});
 
 		maxOptionLength += 3;
-		std::cout << std::left << std::setw(maxOptionLength) << "Option" << std::setw(15) << "Default" << std::setw(11) << "Required" << "Description\n";
+		std::cout << std::left << std::setw(maxOptionLength) << "Option" << std::setw(11) << "Default" << std::setw(11) << "Required" << "Description\n";
 		forEach([maxOptionLength](const auto& tag, const auto& value) {
-			std::cout << std::left << std::setw(maxOptionLength) << ("--" + std::string(tag.name)) << std::setw(15) 
+			std::cout << std::left << std::setw(maxOptionLength) << ("--" + std::string(tag.name)) << std::setw(11) 
 				<< value << std::setw(11) << (tag.required ? "Yes" : "No") << std::string_view(tag.description) << '\n';
 		});
 	}

@@ -19,34 +19,35 @@
 namespace fs = std::filesystem;
 
 namespace opt {
-	using OutputDirectory =            Option<fs::path,  "output",                  "Output directory for generated heightmaps", true>;
-	using DllPath =                    Option<fs::path,  "dll",                     "HeightmapGen DLL path",                     false>;
-	using Samples =                    OptionD<int32_t,  "samples",                 "Number of samples to generate",             false, 10>;
-	using ImageSize =                  OptionD<int32_t,  "size",                    "Image width and height",                    false, 128>;
-	using DatasetSeed =                OptionD<uint32_t, "dataset-seed",            "Dataset origin/scale seed",                 false, 0>;
-	using ScaleMin =                   OptionD<float,    "scale-min",               "Minimum Brownian-Perlin frequency",         false, 0.005f>;
-	using ScaleMax =                   OptionD<float,    "scale-max",               "Maximum Brownian-Perlin frequency",         false, 0.05f>;
-	using Overwrite =                  OptionD<bool,     "overwrite",               "Overwrite existing output directory",       false, false>;
+	using OutputDirectory =            Option<fs::path,  "output",                  "Output directory for generated heightmaps",   true>;
+	using DllPath =                    Option<fs::path,  "dll",                     "HeightmapGen DLL path",                       false>;
+	using Samples =                    OptionD<int32_t,  "samples",                 "Number of samples to generate",               false, 10>;
+	using ImageSize =                  OptionD<int32_t,  "size",                    "Image width and height",                      false, 128>;
+	using ErosionSize =                OptionD<int32_t,  "erosion-size",            "Internal erosion image size (0 uses --size)", false, 0>;
+	using DatasetSeed =                OptionD<uint32_t, "dataset-seed",            "Dataset origin/scale seed",                   false, 0>;
+	using ScaleMin =                   OptionD<float,    "scale-min",               "Minimum Brownian-Perlin frequency",           false, 0.005f>;
+	using ScaleMax =                   OptionD<float,    "scale-max",               "Maximum Brownian-Perlin frequency",           false, 0.05f>;
+	using Overwrite =                  OptionD<bool,     "overwrite",               "Overwrite existing output directory",         false, false>;
 	namespace erosion {
-		using Seed =                   OptionD<uint32_t, "erosion-seed",            "Erosion seed",                              false, 0>;
-		using Iterations =             OptionD<int32_t,  "erosion-iterations",      "Erosion iterations",                        false, 1>;
-		using Radius =                 OptionD<int32_t,  "erosion-radius",          "Erosion radius",                            false, 3>;
-		using MaxDropletLifetime =     OptionD<int32_t,  "erosion-lifetime",        "Erosion max droplet lifetime",              false, 30>;
-		using Inertia =                OptionD<float,    "erosion-inertia",         "Erosion inertia",                           false, 0.05f>;
-		using SedimentCapacityFactor = OptionD<float,    "erosion-scf",             "Erosion sediment capacity factor",          false, 4.0f>;
-		using MinSedimentCapacity =    OptionD<float,    "erosion-min-sediment",    "Erosion min sediment capacity",             false, 0.01f>;
-		using ErodeSpeed =             OptionD<float,    "erosion-erode-speed",     "Erosion erode speed",                       false, 0.3f>;
-		using DepositSpeed =           OptionD<float,    "erosion-deposit-speed",   "Erosion deposit speed",                     false, 0.3f>;
-		using EvaporateSpeed =         OptionD<float,    "erosion-evaporate-speed", "Erosion evaporate speed",                   false, 0.01f>;
-		using Gravity =                OptionD<float,    "erosion-gravity",         "Erosion gravity",                           false, 4.0f>;
-		using InitialSpeed =           OptionD<float,    "erosion-initial-speed",   "Erosion initial speed",                     false, 1.0f>;
-		using InitialWaterVolume =     OptionD<float,    "erosion-initial-water",   "Erosion initial water volume",              false, 1.0f>;
+		using Seed =                   OptionD<uint32_t, "erosion-seed",            "Erosion seed",                                false, 0>;
+		using Iterations =             OptionD<int32_t,  "erosion-iterations",      "Erosion iterations",                          false, 1>;
+		using Radius =                 OptionD<int32_t,  "erosion-radius",          "Erosion radius",                              false, 3>;
+		using MaxDropletLifetime =     OptionD<int32_t,  "erosion-lifetime",        "Erosion max droplet lifetime",                false, 30>;
+		using Inertia =                OptionD<float,    "erosion-inertia",         "Erosion inertia",                             false, 0.05f>;
+		using SedimentCapacityFactor = OptionD<float,    "erosion-scf",             "Erosion sediment capacity factor",            false, 4.0f>;
+		using MinSedimentCapacity =    OptionD<float,    "erosion-min-sediment",    "Erosion min sediment capacity",               false, 0.01f>;
+		using ErodeSpeed =             OptionD<float,    "erosion-erode-speed",     "Erosion erode speed",                         false, 0.3f>;
+		using DepositSpeed =           OptionD<float,    "erosion-deposit-speed",   "Erosion deposit speed",                       false, 0.3f>;
+		using EvaporateSpeed =         OptionD<float,    "erosion-evaporate-speed", "Erosion evaporate speed",                     false, 0.01f>;
+		using Gravity =                OptionD<float,    "erosion-gravity",         "Erosion gravity",                             false, 4.0f>;
+		using InitialSpeed =           OptionD<float,    "erosion-initial-speed",   "Erosion initial speed",                       false, 1.0f>;
+		using InitialWaterVolume =     OptionD<float,    "erosion-initial-water",   "Erosion initial water volume",                false, 1.0f>;
 	}
 }
 
 using Options = OptionRegistry<
 	opt::OutputDirectory, opt::DllPath, opt::Samples, opt::ImageSize, 
-	opt::DatasetSeed, opt::ScaleMin, opt::ScaleMax, opt::Overwrite,
+	opt::ErosionSize, opt::DatasetSeed, opt::ScaleMin, opt::ScaleMax, opt::Overwrite,
 	opt::erosion::Seed, opt::erosion::Iterations, opt::erosion::Radius, opt::erosion::MaxDropletLifetime, 
 	opt::erosion::Inertia, opt::erosion::SedimentCapacityFactor, opt::erosion::MinSedimentCapacity,
 	opt::erosion::ErodeSpeed, opt::erosion::DepositSpeed, opt::erosion::EvaporateSpeed, 
@@ -132,11 +133,27 @@ bool prepareOutput(const fs::path& root) {
 	return in && out;
 }
 
+void cropCenter(const std::vector<float>& source, int32_t sourceSize, std::vector<float>& destination, int32_t destinationSize) {
+	const int32_t offset = (sourceSize - destinationSize) / 2;
+	for (int32_t x = 0; x < destinationSize; x++) {
+		for (int32_t y = 0; y < destinationSize; y++) {
+			destination[x * destinationSize + y] = source[(x + offset) * sourceSize + (y + offset)];
+		}
+	}
+}
+
 int main(int argc, char** argv) {
 	Options options;
 	if (!options.parseArguments(argc, argv)) {
 		std::cout << "\nUsage: " << argv[0] << " [options]\n";
 		options.help();
+		return EXIT_FAILURE;
+	}
+
+	const int32_t imageSize = options.get<opt::ImageSize>();
+	const int32_t erosionSize = options.get<opt::ErosionSize>() == 0 ? imageSize : options.get<opt::ErosionSize>();
+	if (erosionSize < imageSize) {
+		std::cout << "Erosion size must not be smaller than image size.\n";
 		return EXIT_FAILURE;
 	}
 
@@ -167,14 +184,18 @@ int main(int argc, char** argv) {
 		ContextGuard context(hg);
 		std::vector<float> preErosion;
 		std::vector<float> eroded;
-		preErosion.resize(options.get<opt::ImageSize>() * options.get<opt::ImageSize>());
-		eroded.resize(options.get<opt::ImageSize>() * options.get<opt::ImageSize>());
+		std::vector<float> preErosionGenerated;
+		std::vector<float> erodedGenerated;
+		preErosion.resize(imageSize * imageSize);
+		eroded.resize(imageSize * imageSize);
+		preErosionGenerated.resize(erosionSize * erosionSize);
+		erodedGenerated.resize(erosionSize * erosionSize);
 
 		CommonSettings commonSettings{
 			.seed = options.get<opt::DatasetSeed>(),
 			.scale = scale,
 			.amplitude = 1.0f,
-			.resolution = options.get<opt::ImageSize>(),
+			.resolution = erosionSize,
 			.cacheable = false 
 		};
 
@@ -188,8 +209,10 @@ int main(int argc, char** argv) {
 
 		const bool generatorsReady = baseGenerator != nullptr && erosionGenerator != nullptr;
 		if (generatorsReady) {
-			hg.api().getChunk(baseGenerator, regionX, regionY, preErosion.data());
-			hg.api().getChunk(erosionGenerator, regionX, regionY, eroded.data());
+			hg.api().getChunk(baseGenerator, regionX, regionY, preErosionGenerated.data());
+			hg.api().getChunk(erosionGenerator, regionX, regionY, erodedGenerated.data());
+			cropCenter(preErosionGenerated, erosionSize, preErosion, imageSize);
+			cropCenter(erodedGenerated, erosionSize, eroded, imageSize);
 		}
 
 		if (!generatorsReady
