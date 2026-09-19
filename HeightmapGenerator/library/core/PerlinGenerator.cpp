@@ -1,6 +1,8 @@
 #include "Generators.h"
 #include "Helpers.h"
 
+#include <cmath>
+
 float lerp(float a, float b, float t) {
 	return a + t * (b - a);
 }
@@ -57,14 +59,15 @@ bool PerlinGeneratorImpl::isDeterministic() {
 
 
 float PerlinGeneratorImpl::getHeight(Vec2Int pos) {
-	float x = pos.x * settings.scale;
-	float y = pos.y * settings.scale;
+	double sampleX = static_cast<double>(pos.x) * settings.scale;
+	double sampleY = static_cast<double>(pos.y) * settings.scale;
+	double cellX = std::floor(sampleX);
+	double cellY = std::floor(sampleY);
+	int X = static_cast<int>(cellX) & 255;
+	int Y = static_cast<int>(cellY) & 255;
 
-	int X = (int)floor(x) & 255;
-	int Y = (int)floor(y) & 255;
-
-	x -= floor(x);
-	y -= floor(y);
+	float x = static_cast<float>(sampleX - cellX);
+	float y = static_cast<float>(sampleY - cellY);
 
 	float u = fade(x);
 	float v = fade(y);
