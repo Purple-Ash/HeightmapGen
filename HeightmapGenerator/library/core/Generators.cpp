@@ -145,3 +145,15 @@ float CoordinateGeneratorImpl::getHeight(Vec2Int pos) {
 bool CoordinateGeneratorImpl::isDeterministic() {
     return true;
 }
+
+VoronoiGeneratorImpl::VoronoiGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings)
+	: GeneratorImpl(ctx, settings), vornoi() {
+}
+
+float VoronoiGeneratorImpl::getHeight(Vec2Int pos) {
+	return vornoi.get(pos.x * settings.scale, pos.y * settings.scale, settings.seed) * settings.amplitude;
+}
+
+bool VoronoiGeneratorImpl::isDeterministic() {
+	return true;
+}

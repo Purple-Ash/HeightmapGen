@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../core/Helpers.h"
+#include "Helpers.h"
 
 constexpr float white_noise(int x, int y, int z) {
 	uint32_t seed = uint32_t(x) * 1087;

@@ -1,41 +1,29 @@
+#include <algorithm>
 #include <vector>
-
 #include <cstdint>
-#include "voronoi.hpp"
+#include <chrono>
 
 #include <winx.h>
 #include <glad/glad.h>
 
-static float voronoi_sampler(int x, int y) {
-	VoronoiNoise noise;
-	float s = 0.03;
-
-	return noise.get(s * x, s * y, 0);
-}
-
-static float bitwise_sampler(int x, int y) {
-	return (x & y) * 0.01;
-}
-
-static float white_sampler(int x, int y) {
-	float s = 0.3;
-	return white_noise(x * s, y * s, 0);
-}
+#include "../library/core/Generators.h"
 
 struct Sampler {
-	using Function = float (*) (int, int);
-
-	Function function;
+	Generator generator;
 	const char* name;
 };
 
-
-void write_image_data(void* data, int w, int h, Sampler::Function sampler) {
+void write_image_data(void* data, int w, int h, Sampler& sampler) {
 	uint8_t* pixels = static_cast<uint8_t*>(data);
+
+	printf("Generating image for sampler: '%s'\n", sampler.name);
+	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
 	for (int y = 0; y < h; y ++) {
 		for (int x = 0; x < w; x ++) {
-			const uint8_t normalized = static_cast<uint8_t>(255 * sampler(x, y));
+			float sample = std::clamp(0.0f, 1.0f, getPoint(sampler.generator, x, y));
+
+			const uint8_t normalized = static_cast<uint8_t>(255 * sample);
 
 			pixels[0] = normalized;
 			pixels[1] = normalized;
@@ -44,15 +32,50 @@ void write_image_data(void* data, int w, int h, Sampler::Function sampler) {
 			pixels += 3;
 		}
 	}
+
+	std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+	printf("Done generating, took %dms\n", (int) std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count());
+
 }
 
 static bool should_run = true;
 static int index = 0;
+static Context ctx = createContext();
+
+template <typename G>
+Generator createSimple(float scale, float amplitude) {
+	CommonSettings settings {};
+	settings.seed = 42;
+	settings.scale = scale;
+	settings.amplitude = amplitude;
+	settings.resolution = 1;
+	settings.cacheable = false;
+
+	return new G(ctx, settings);
+}
+
+Generator createHydraulicErosion(float scale, float amplitude, Generator generator) {
+	CommonSettings settings {};
+	settings.seed = 42;
+	settings.scale = scale;
+	settings.amplitude = amplitude;
+	settings.resolution = 1;
+	settings.cacheable = true;
+
+	HydraulicErosionSettings hes {};
+	hes.seed = settings.seed; // why does HEG has two seeds?
+	hes.baseGeneratorImpl = generator;
+
+	return new HydraulicErosionGeneratorImpl(ctx, settings, hes);
+}
 
 static std::vector<Sampler> samplers = {
-	{voronoi_sampler, "Voronoi"},
-	{bitwise_sampler, "Bitwise"},
-	{white_sampler, "White"}
+	{createSimple<RandomGeneratorImpl>(1, 1), "Random Generator"},
+	{createSimple<CoordinateGeneratorImpl>(0.5, 0.001), "Coordinate Generator"},
+	{createSimple<VoronoiGeneratorImpl>(0.03, 1), "Voronoi Generator"},
+	{createSimple<PerlinGeneratorImpl>(0.05, 1), "Perlin Generator"},
+	{createSimple<BrownianPerlinGeneratorImpl>(0.01, 1), "Brownian Perlin Generator"},
+	{createHydraulicErosion(0.01, 1, createSimple<BrownianPerlinGeneratorImpl>(0.01, 1)), "Hydraulic Erosion Generator"}
 };
 
 void window_close_handler() {
@@ -97,7 +120,7 @@ int main(int argc, char *argv[]) {
 		if (current != index) {
 			current = index;
 
-			write_image_data(pixels, w, h, samplers[index].function);
+			write_image_data(pixels, w, h, samplers[index]);
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, w, h, 0, GL_RGB,  GL_UNSIGNED_BYTE, pixels);
 
 			winxSetTitle(samplers[index].name);
