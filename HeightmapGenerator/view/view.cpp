@@ -72,8 +72,8 @@ int main(int argc, char *argv[]) {
 	void* pixels = malloc(3 * w * h);
 
 	winxOpen(w, h, "Noise Viewer");
-	winxSetCloseEventHandle(window_close_handler);
-	winxSetKeyboardEventHandle(window_keyboard_handler);
+	winxSetCloseEventHandler(window_close_handler);
+	winxSetKeyboardEventHandler(window_keyboard_handler);
 
 	gladLoadGL();
 

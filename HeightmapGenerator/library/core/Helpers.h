@@ -2,6 +2,7 @@
 #include <random>
 #include <vector>
 #include <cstdint>
+#include <cmath>
 
 inline float randomFloatBetween(float min, float max)
 {
@@ -17,42 +18,66 @@ struct Vec2 {
 	T x;
 	T y;
 
-	Vec2() = default;
-	Vec2(T x, T y){
-		this->x = x;
-		this->y = y;
+	constexpr Vec2() = default;
+	constexpr Vec2(T x, T y) noexcept : x(x), y(y) {}
+
+	constexpr bool operator==(const Vec2& other) const = default;
+
+	constexpr Vec2 operator+(const Vec2& other) const {
+		return Vec2(x + other.x, y + other.y);
 	}
 
-	bool operator==(const Vec2<T>& other) const = default;
+	constexpr Vec2 operator-(const Vec2& other) const {
+		return Vec2(x - other.x, y - other.y);
+	}
 
-	Vec2<T> operator+(const Vec2<T>& other) const {
-		return Vec2<T>(x + other.x, y + other.y);
+	constexpr Vec2 operator*(const Vec2& other) const {
+		return Vec2(x * other.x, y * other.y);
 	}
-	Vec2<T> operator-(const Vec2<T>& other) const {
-		return Vec2<T>(x - other.x, y - other.y);
+
+	constexpr Vec2 operator/(const Vec2& other) const {
+		return Vec2(x / other.x, y / other.y);
 	}
-	Vec2<T> operator*(const Vec2<T>& other) const {
-		return Vec2<T>(x * other.x, y * other.y);
+
+	constexpr Vec2 operator+(T scalar) const {
+		return Vec2(x + scalar, y + scalar);
 	}
-	Vec2<T> operator/(const Vec2<T>& other) const {
-		return Vec2<T>(x / other.x, y / other.y);
+
+	constexpr Vec2 operator-(T scalar) const {
+		return Vec2(x - scalar, y - scalar);
 	}
-	Vec2<T> operator+(int32_t scalar) const {
-		return Vec2<T>(x + scalar, y + scalar);
+
+	constexpr Vec2 operator*(T scalar) const {
+		return Vec2(x * scalar, y * scalar);
 	}
-	Vec2<T> operator-(int32_t scalar) const {
-		return Vec2<T>(x - scalar, y - scalar);
-	}
-	Vec2<T> operator*(int32_t scalar) const {
-		return Vec2<T>(x * scalar, y * scalar);
-	}
-	Vec2<T> operator/(int32_t scalar) const {
-		return Vec2<T>(x / scalar, y / scalar);
+
+	constexpr Vec2 operator/(T scalar) const {
+		return Vec2(x / scalar, y / scalar);
 	}
 };
 
+template<typename T>
+struct Vec3 {
+
+	T x;
+	T y;
+	T z;
+
+	constexpr T distance(const Vec3& other) const {
+		const T dx = x - other.x;
+		const T dy = y - other.y;
+		const T dz = z - other.z;
+
+		return std::sqrt(dx * dx + dy * dy + dz * dz);
+	}
+
+};
+
+
 using Vec2Int = Vec2<int32_t>;
 using Vec2Float = Vec2<float>;
+
+using Vec3f = Vec3<float>;
 
 namespace std {
 	template<> struct hash<Vec2Int> {

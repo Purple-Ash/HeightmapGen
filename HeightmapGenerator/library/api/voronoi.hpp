@@ -1,6 +1,6 @@
 #pragma once
 
-#include "math.hpp"
+#include "../core/Helpers.h"
 
 constexpr float white_noise(int x, int y, int z) {
 	uint32_t seed = uint32_t(x) * 1087;
@@ -17,14 +17,14 @@ class VoronoiNoise {
 
 private:
 
-	constexpr Vec3 chunk(int x, int y, int z) {
+	constexpr Vec3f chunk(int x, int y, int z) {
 		return {x + white_noise(x, y, z), y + white_noise(z + 53, x + 197, y + 967), z + white_noise(y + 5, z + 829, x + 541)};
 	}
 
 public:
 
 	float get(float x, float y, float z) {
-		Vec3 sample {x, y, z};
+		Vec3f sample {x, y, z};
 
 		int bx = (int) std::floor(x);
 		int by = (int) std::floor(y);
