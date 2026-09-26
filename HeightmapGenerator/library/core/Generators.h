@@ -1,11 +1,8 @@
 #pragma once
 #include "HeightmapGenAPI.h"
 #include "HeightmapGenContext.h"
-#include "Voronoi.hpp"
-#include <cstdint>
 #include <vector>
 #include <unordered_map>
-#include <span>
 
 struct GeneratorImpl {
 protected:
@@ -77,8 +74,6 @@ public:
 };
 
 class VoronoiGeneratorImpl : public GeneratorImpl {
-	VoronoiNoise vornoi;
-
 	float getHeight(Vec2Int pos) override;
 
 	public:
