@@ -26,7 +26,7 @@ struct CommonSettings
 struct HydraulicErosionSettings
 {
     int32_t seed = 0;
-    int32_t numIterations = 10;
+    int32_t numIterations = 1;
     int32_t erosionRadius = 3;
     int32_t maxDropletLifetime = 30;
     float inertia = 0.05f;
@@ -47,6 +47,9 @@ extern "C" {
     HG_API Context createContext();
     HG_API void destroyContext(Context ctx);
 
+    HG_API Generator createCoordinateGenerator(Context ctx, CommonSettings commonSettings);
+    HG_API Generator createRandomGenerator(Context ctx, CommonSettings commonSettings);
+    HG_API Generator createVoronoiGenerator(Context ctx, CommonSettings commonSettings);
     HG_API Generator createHydraulicErosionGenerator(Context ctx, CommonSettings commonSettings, HydraulicErosionSettings erosionSettings);
     HG_API Generator createPerlinGenerator(Context ctx, CommonSettings commonSettings);
     HG_API Generator createBrownianPerlinGenerator(Context ctx, CommonSettings commonSettings);

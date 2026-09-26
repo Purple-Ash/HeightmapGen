@@ -6,7 +6,7 @@
 #include <winx.h>
 #include <glad/glad.h>
 
-#include "../library/core/Generators.h"
+#include "../library/api/HeightmapGenAPI.h"
 
 struct Sampler {
 	Generator generator;
@@ -42,16 +42,17 @@ static bool should_run = true;
 static int index = 0;
 static Context ctx = createContext();
 
-template <typename G>
-Generator createSimple(float scale, float amplitude) {
+using GeneratorFactory = Generator (*)(Context, CommonSettings);
+
+Generator createSimple(GeneratorFactory factory, float scale, float amplitude) {
 	CommonSettings settings {};
 	settings.seed = 42;
 	settings.scale = scale;
 	settings.amplitude = amplitude;
-	settings.resolution = 1;
+	settings.resolution = 200;
 	settings.cacheable = false;
 
-	return new G(ctx, settings);
+	return factory(ctx, settings);
 }
 
 Generator createHydraulicErosion(float scale, float amplitude, Generator generator) {
@@ -66,16 +67,16 @@ Generator createHydraulicErosion(float scale, float amplitude, Generator generat
 	hes.seed = settings.seed; // why does HEG has two seeds?
 	hes.baseGeneratorImpl = generator;
 
-	return new HydraulicErosionGeneratorImpl(ctx, settings, hes);
+	return createHydraulicErosionGenerator(ctx, settings, hes);
 }
 
 static std::vector<Sampler> samplers = {
-	{createSimple<RandomGeneratorImpl>(1, 1), "Random Generator"},
-	{createSimple<CoordinateGeneratorImpl>(0.5, 0.001), "Coordinate Generator"},
-	{createSimple<VoronoiGeneratorImpl>(0.03, 1), "Voronoi Generator"},
-	{createSimple<PerlinGeneratorImpl>(0.05, 1), "Perlin Generator"},
-	{createSimple<BrownianPerlinGeneratorImpl>(0.01, 1), "Brownian Perlin Generator"},
-	{createHydraulicErosion(0.01, 1, createSimple<BrownianPerlinGeneratorImpl>(0.01, 1)), "Hydraulic Erosion Generator"}
+	{createSimple(createRandomGenerator, 1, 1), "Random Generator"},
+	{createSimple(createCoordinateGenerator, 0.5, 0.001), "Coordinate Generator"},
+	{createSimple(createVoronoiGenerator, 0.03, 1), "Voronoi Generator"},
+	{createSimple(createPerlinGenerator, 0.05, 1), "Perlin Generator"},
+	{createSimple(createBrownianPerlinGenerator, 0.01, 1), "Brownian Perlin Generator"},
+	{createHydraulicErosion(0.01, 1, createSimple(createBrownianPerlinGenerator, 0.01, 1)), "Hydraulic Erosion Generator"}
 };
 
 void window_close_handler() {
