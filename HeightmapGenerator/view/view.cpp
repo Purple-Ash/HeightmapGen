@@ -21,7 +21,7 @@ void write_image_data(void* data, int w, int h, Sampler& sampler) {
 
 	for (int y = 0; y < h; y ++) {
 		for (int x = 0; x < w; x ++) {
-			float sample = std::clamp(0.0f, 1.0f, getPoint(sampler.generator, x, y));
+			float sample = std::clamp(getPoint(sampler.generator, x, y), 0.0f, 1.0f);
 
 			const uint8_t normalized = static_cast<uint8_t>(255 * sample);
 
