@@ -59,7 +59,7 @@ Generator createHydraulicErosion(float scale, float amplitude, Generator generat
 	settings.seed = 42;
 	settings.scale = scale;
 	settings.amplitude = amplitude;
-	settings.resolution = 1;
+	settings.resolution = 200;
 	settings.cacheable = true;
 
 	HydraulicErosionSettings hes {};
