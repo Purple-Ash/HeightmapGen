@@ -3,6 +3,7 @@ from dataset import HeightmapDataset
 import torch
 from torch.utils.data import DataLoader, random_split
 from torch import nn
+import torch.onnx
 
 class ErosionCNN(nn.Module):
     def __init__(self):
@@ -18,8 +19,23 @@ class ErosionCNN(nn.Module):
         x = self.conv3(x)
         return x
 
+def export_onnx(model, file_path):
+    if not file_path.parent.exists():
+        print(f"Creating directory: {file_path.parent}")
+        file_path.parent.mkdir(parents=False, exist_ok=True)
+
+    model.cpu().eval()
+    example_input = torch.rand(1, 1, 128, 128, dtype=torch.float32)
+    torch.onnx.export(model, example_input, file_path, 
+                      input_names=['heightmap'], output_names=['eroded_heightmap'], 
+                      dynamo=True)
+    
+    print(f"Model exported to {file_path}")
+
 def main():
-    dataset_dir = Path("..\\..\\DatasetGenerator\\dataset")
+    parent_dir = Path(__file__).parent.resolve()
+    dataset_dir = parent_dir.parent.parent / "DatasetGenerator" / "dataset"
+
     dataset_full = HeightmapDataset(dataset_dir)
     dataset_train, dataset_val = random_split(dataset_full, [0.8, 0.2])
     dataloader_train = DataLoader(dataset_train, batch_size=4, shuffle=True)
@@ -60,6 +76,8 @@ def main():
         val_loss /= len(dataloader_val)
         print(f"Epoch {epoch+1}/{num_epochs}, Validation Loss: {val_loss}")
 
+    model_export_path = parent_dir / "models" / "eroded_heightmap.onnx"
+    export_onnx(model, model_export_path)
 
 if __name__ == "__main__":
     main()
