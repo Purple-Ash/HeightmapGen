@@ -1,11 +1,9 @@
 
 import argparse
 import math
-import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-from matplotlib.figure import Figure
 import numpy as np
 
 
@@ -43,35 +41,54 @@ def resolve_sample(samples: list[Path], requested: int):
     raise ValueError(f"sample '{requested}' was not found")
 
 
-def visualize(input_maps, output_maps, title):
-    minimum = [min(float(input_map.min()), float(output_map.min())) for input_map, output_map in zip(input_maps, output_maps)]
-    maximum = [max(float(input_map.max()), float(output_map.max())) for input_map, output_map in zip(input_maps, output_maps)]
-
-    img_count = len(input_maps)
-    figure, axes = plt.subplots(img_count, 2, figsize=(8, 4 * img_count), constrained_layout=True)
-    if img_count == 1:
-        axes = np.array([axes])
-    figure.suptitle(title)
-
+def visualize(image_groups, image_types, sample_numbers):
+    figure, axes = plt.subplots(1, len(image_types), figsize=(4 * len(image_types), 4), constrained_layout=True)
     cmap = "terrain"
-    labels = ("Input", "Output")
-    for i, (input_map, output_map) in enumerate(zip(input_maps, output_maps)):
-        images = (
-            axes[i, 0].imshow(input_map, cmap=cmap, vmin=minimum[i], vmax=maximum[i]),
-            axes[i, 1].imshow(output_map, cmap=cmap, vmin=minimum[i], vmax=maximum[i]),
+    first_maps = [group[0] for group in image_groups]
+    images = [axis.imshow(heightmap, cmap=cmap) for axis, heightmap in zip(axes, first_maps)]
+
+    for axis, image, label in zip(axes, images, image_types):
+        axis.set_title(label)
+        axis.set_xlabel("x")
+        axis.set_ylabel("y")
+        figure.colorbar(image, ax=axis, fraction=0.046, pad=0.04)
+
+    def show_sample(index):
+        maps = [group[index] for group in image_groups]
+        minimum = min(float(heightmap.min()) for heightmap in maps)
+        maximum = max(float(heightmap.max()) for heightmap in maps)
+        for image, heightmap in zip(images, maps):
+            image.set_data(heightmap)
+            image.set_clim(minimum, maximum)
+        figure.suptitle(
+            f"Sample {sample_numbers[index]} ({index + 1}/{len(sample_numbers)}) - scroll to switch samples"
         )
-        for axis, image, label in zip(axes[i], images, labels):
-            axis.set_title(label)
-            axis.set_xlabel("x")
-            axis.set_ylabel("y")
-            figure.colorbar(image, ax=axis, fraction=0.046, pad=0.04)
+        figure.canvas.draw_idle()
+
+    current_index = 0
+
+    def on_scroll(event):
+        nonlocal current_index
+        if event.button == "up":
+            current_index = (current_index + 1) % len(image_groups[0])
+        elif event.button == "down":
+            current_index = (current_index - 1) % len(image_groups[0])
+        else:
+            return
+        show_sample(current_index)
+
+    figure.canvas.mpl_connect("scroll_event", on_scroll)
+    show_sample(current_index)
     return figure
 
 
 def parse_arguments():
+    parent_dir = Path(__file__).parent.resolve()
+    default_dataset = parent_dir.parent.parent / "DatasetGenerator" / "dataset"
+
     parser = argparse.ArgumentParser()
-    parser.add_argument("dataset", type=Path, help="Dataset directory containing in/ and out/")
-    parser.add_argument("sample", nargs="?", default="0", type=str, help="Sample index (for example 12) or range (for example 2-4)")
+    parser.add_argument("-d", "--dataset", nargs="?", default=default_dataset, type=Path, help="Dataset directory containing in/ and out/")
+    parser.add_argument("-s", "--sample", nargs="?", default="0-9", type=str, help="Sample index (for example 8) or range (for example 0-9)")
     return parser.parse_args()
 
 
@@ -95,7 +112,7 @@ def main() -> int:
         for input_path, output_path in zip(input_paths, output_paths):
             input_maps.append(read_heightmap(input_path))
             output_maps.append(read_heightmap(output_path))
-        figure = visualize(input_maps, output_maps, f"Samples {arguments.sample}")
+        figure = visualize([input_maps, output_maps], ["Input", "Output"], selected_samples)
     except (OSError, ValueError) as error:
         print(f"{error}")
         return 1

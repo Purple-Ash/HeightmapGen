@@ -36,9 +36,15 @@ Install the viewer dependencies:
 python3 -m pip install matplotlib numpy
 ```
 
-View a single sample (e.g. 0), or a range of samples (e.g. 2-4):
+View a single sample (e.g. 0), or a range of samples (e.g. 0-9):
 
 ```sh
 python3 DatasetGenerator/src/viewer.py DatasetGenerator/dataset 0
 python3 DatasetGenerator/src/viewer.py DatasetGenerator/dataset 2-4
+```
+
+By default, the viewer will display the first 10 samples.
+
+```sh
+python3 DatasetGenerator/src/viewer.py
 ```
