@@ -85,6 +85,8 @@ float PerlinGeneratorImpl::getHeight(Vec2Int pos) {
 BrownianPerlinGeneratorImpl::BrownianPerlinGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings) : GeneratorImpl(ctx, settings) {
     float frequency = 1.0f;
     float currentAmplitude = 1.0f;
+	this->amplitude = 0;
+
     for(int i = 0; i < octaveCount; i++){
 
         CommonSettings newSettings = {
@@ -96,8 +98,12 @@ BrownianPerlinGeneratorImpl::BrownianPerlinGeneratorImpl(ContextImpl* ctx, const
         };
         octaves.emplace_back(ctx, newSettings);
         frequency *= lacunarity;
+
+    	amplitude += currentAmplitude;
         currentAmplitude *= persistence;
     }
+
+	amplitude *= settings.amplitude;
 }
 
 float BrownianPerlinGeneratorImpl::getHeight(Vec2Int pos) {
@@ -106,7 +112,7 @@ float BrownianPerlinGeneratorImpl::getHeight(Vec2Int pos) {
     for (auto & octave : octaves) {
 		totalHeight += octave.getPoint(pos);
     }
-    return totalHeight * settings.amplitude;
+    return totalHeight / amplitude;
 }
 
 bool BrownianPerlinGeneratorImpl::isDeterministic()

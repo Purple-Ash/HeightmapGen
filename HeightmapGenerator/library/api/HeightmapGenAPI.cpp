@@ -15,6 +15,27 @@ HG_API void destroyContext(Context ctx) {
     if (ctx) delete ctx;
 }
 
+HG_API Generator createCoordinateGenerator(Context ctx, CommonSettings commonSettings) {
+    if (!ctx) return nullptr;
+    Generator gen = new CoordinateGeneratorImpl(ctx, commonSettings);
+    ctx->generators.push_back(gen);
+    return gen;
+}
+
+HG_API Generator createRandomGenerator(Context ctx, CommonSettings commonSettings) {
+    if (!ctx) return nullptr;
+    Generator gen = new RandomGeneratorImpl(ctx, commonSettings);
+    ctx->generators.push_back(gen);
+    return gen;
+}
+
+HG_API Generator createVoronoiGenerator(Context ctx, CommonSettings commonSettings) {
+    if (!ctx) return nullptr;
+    Generator gen = new VoronoiGeneratorImpl(ctx, commonSettings);
+    ctx->generators.push_back(gen);
+    return gen;
+}
+
 HG_API Generator createPerlinGenerator(Context ctx, CommonSettings commonSettings) {
     if (!ctx) return nullptr;
     Generator gen = new PerlinGeneratorImpl(ctx, commonSettings);

@@ -1,10 +1,8 @@
 #pragma once
 #include "HeightmapGenAPI.h"
 #include "HeightmapGenContext.h"
-#include <cstdint>
 #include <vector>
 #include <unordered_map>
-#include <span>
 
 struct GeneratorImpl {
 protected:
@@ -62,6 +60,8 @@ public:
 
 class BrownianPerlinGeneratorImpl : public GeneratorImpl {
     std::vector<PerlinGeneratorImpl> octaves;
+	float amplitude;
+
     const float lacunarity = 2.0f;
     const float persistence = 0.5f;
     const unsigned int octaveCount = 4;
@@ -71,6 +71,14 @@ class BrownianPerlinGeneratorImpl : public GeneratorImpl {
 public:
     BrownianPerlinGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings);
     bool isDeterministic() override;
+};
+
+class VoronoiGeneratorImpl : public GeneratorImpl {
+	float getHeight(Vec2Int pos) override;
+
+	public:
+		VoronoiGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings);
+		bool isDeterministic() override;
 };
 
 class HydraulicErosionGeneratorImpl : public GeneratorImpl {
