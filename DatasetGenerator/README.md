@@ -33,18 +33,18 @@ On Windows, pass the path to `HeightmapGen.dll` with `--dll`.
 Install the viewer dependencies:
 
 ```sh
-python3 -m pip install matplotlib numpy
+pip install matplotlib numpy
 ```
 
 View a single sample (e.g. 0), or a range of samples (e.g. 0-9):
 
 ```sh
-python3 DatasetGenerator/src/viewer.py DatasetGenerator/dataset 0
-python3 DatasetGenerator/src/viewer.py DatasetGenerator/dataset 2-4
+python DatasetGenerator/src/viewer.py -d DatasetGenerator/dataset -s 0
+python DatasetGenerator/src/viewer.py -d DatasetGenerator/dataset -s 2-4
 ```
 
 By default, the viewer will display the first 10 samples.
 
 ```sh
-python3 DatasetGenerator/src/viewer.py
+python DatasetGenerator/src/viewer.py
 ```

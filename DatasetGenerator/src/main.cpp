@@ -160,8 +160,11 @@ int main(int argc, char** argv) {
 	const auto dllPath = options.get<opt::DllPath>().empty() ? defaultDllPath() : options.get<opt::DllPath>();
 
 	HeightmapGenerator hg;
-	if (dllPath.empty() || !hg.load(dllPath)) {
-		std::cout << "Could not load the DLL " << dllPath.string() << ".\n";
+	try {
+		hg.load(dllPath);
+	}
+	catch (const std::runtime_error& loadResult) {
+		std::cout << "Could not load the DLL: " << loadResult.what() << "\n";
 		return EXIT_FAILURE;
 	}
 

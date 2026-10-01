@@ -88,22 +88,25 @@ def parse_arguments():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-d", "--dataset", nargs="?", default=default_dataset, type=Path, help="Dataset directory containing in/ and out/")
-    parser.add_argument("-s", "--sample", nargs="?", default="0-9", type=str, help="Sample index (for example 8) or range (for example 0-9)")
+    parser.add_argument("-s", "--sample", nargs="?", default="*", type=str, help="Sample index (for example 8) or range (for example 0-9)")
     return parser.parse_args()
 
 
 def main() -> int:
     arguments = parse_arguments()
 
-    selected_samples = []
-    if "-" in arguments.sample:
-        start, end = map(int, arguments.sample.split("-"))
-        selected_samples = list(range(start, end + 1))
-    else:
-        selected_samples = [int(arguments.sample)]
-
     try:
         samples = available_samples(arguments.dataset)
+
+        selected_samples = []
+        if "-" in arguments.sample:
+            start, end = map(int, arguments.sample.split("-"))
+            selected_samples = list(range(start, end + 1))
+        elif arguments.sample == "*":
+            selected_samples = [int(sample.stem) for sample in samples[:10]]
+        else:
+            selected_samples = [int(arguments.sample)]
+
         input_paths = [resolve_sample(samples, sample) for sample in selected_samples]
         output_paths = [arguments.dataset / "out" / input_path.name for input_path in input_paths]
 

@@ -3,6 +3,8 @@
 #include "HeightmapGenAPI.h"
 
 #include <filesystem>
+#include <string>
+#include <system_error>
 
 #ifdef _WIN32
 	#define WIN32_LEAN_AND_MEAN
@@ -38,17 +40,17 @@ public:
 		#undef DECLARE_FUNCTION
 	};
 
-	bool load(const std::filesystem::path& path) {
+	void load(const std::filesystem::path& path) {
 		module = loadModule(path);
-		if (module == nullptr) {
-			return false;
-		}
 
 		bool allLoaded = true;
 		#define LOAD_FUNCTION(name) allLoaded &= loadFunction(api_.name, #name);
 		HG_API_FUNCTIONS(LOAD_FUNCTION)
 		#undef LOAD_FUNCTION
-		return allLoaded;
+
+		if (!allLoaded) {
+			throw std::runtime_error("Failed to load all functions from the dynamic library");
+		}
 	}
 
 	const API& api() const {
@@ -74,8 +76,12 @@ private:
 #ifdef _WIN32
 	HMODULE module = nullptr;
 
-	HMODULE loadModule(const std::filesystem::path& path) const {
-		return LoadLibraryExW(path.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+	HMODULE loadModule(const std::filesystem::path& path) {
+		HMODULE loaded = LoadLibraryExW(path.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
+		if (loaded == nullptr) {
+			throw std::runtime_error(std::system_category().message(GetLastError()));
+		}
+		return loaded;
 	}
 
 	template <typename Function>
@@ -89,8 +95,13 @@ private:
 #else
 	void* module = nullptr;
 
-	void* loadModule(const std::filesystem::path& path) const {
-		return dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
+	void* loadModule(const std::filesystem::path& path) {
+		void* loaded = dlopen(path.c_str(), RTLD_NOW | RTLD_LOCAL);
+		if (loaded == nullptr) {
+			const char* message = dlerror();
+			throw std::runtime_error(message == nullptr ? "Unknown dynamic loader error" : message);
+		}
+		return loaded;
 	}
 
 	template <typename Function>
