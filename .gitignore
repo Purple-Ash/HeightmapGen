@@ -1,0 +1,17 @@
+*.slo
+*.lo
+*.o
+*.obj
+
+*.so
+*.dylib
+*.dll
+
+.idea
+.vs
+.vscode
+
+/HeightmapGenerator/cmake-build-debug
+/HeightmapGenerator/cmake-build-release
+/HeightmapGenerator/out
+/HeightmapGenerator/build

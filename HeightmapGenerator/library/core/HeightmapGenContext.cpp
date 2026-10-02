@@ -2,9 +2,8 @@
 #include "Generators.h"
 
 ContextImpl::~ContextImpl() {
-    for (auto* gen : GeneratorImpls) {
-        gen->context = nullptr; 
+    for (auto* gen : generators) {
         delete gen;
     }
-    GeneratorImpls.clear();
+    generators.clear();
 }

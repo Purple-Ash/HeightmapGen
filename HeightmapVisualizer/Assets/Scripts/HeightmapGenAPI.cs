@@ -57,46 +57,48 @@ public static class HeightmapGenAPI
     public static extern IntPtr smokeTest([MarshalAs(UnmanagedType.LPStr)] string data);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr CreateContext();
+    public static extern IntPtr createContext();
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void DestroyContext(IntPtr ctx);
+    public static extern void destroyContext(IntPtr ctx);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr CreatePerlinGenerator(IntPtr ctx, CommonSettings commonSettings);
+    public static extern IntPtr createPerlinGenerator(IntPtr ctx, CommonSettings commonSettings);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr CreateBrownianPerlinGenerator(IntPtr ctx, CommonSettings commonSettings);
+    public static extern IntPtr createBrownianPerlinGenerator(IntPtr ctx, CommonSettings commonSettings);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr CreateHydraulicErosionGenerator(IntPtr ctx, CommonSettings commonSettings, HydraulicErosionSettings erosionSettings);
+    public static extern IntPtr createHydraulicErosionGenerator(IntPtr ctx, CommonSettings commonSettings, HydraulicErosionSettings erosionSettings);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void DestroyGenerator(IntPtr generator);
+    public static extern void destroyGenerator(IntPtr generator);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr GetChunk(IntPtr generator, int x, int y);
+    public static extern void getChunk(IntPtr generator, int x, int y, [Out] float[] buffer);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    public static extern float GetPoint(IntPtr generator, int x, int y);
+    public static extern float getPoint(IntPtr generator, int x, int y);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void RequestChunk(IntPtr generator, int x, int y);
+    public static extern void requestChunk(IntPtr generator, int x, int y);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void RequestPoint(IntPtr generator, int x, int y);
+    public static extern void requestPoint(IntPtr generator, int x, int y);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr ProbeChunk(IntPtr generator, int x, int y, out bool ready);
+    [return: MarshalAs(UnmanagedType.I1)]
+    public static extern bool probeChunk(IntPtr generator, int x, int y, [Out] float[] buffer);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    public static extern float ProbePoint(IntPtr generator, int x, int y, out bool ready);
+    [return: MarshalAs(UnmanagedType.I1)]
+    public static extern bool probePoint(IntPtr generator, int x, int y, out float point);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void CleanChunkFromCache(IntPtr generator, int x, int y);
+    public static extern void cleanChunkFromCache(IntPtr generator, int x, int y);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void ClearAllCache(IntPtr generator);
+    public static extern void clearAllCache(IntPtr generator);
 
     public static string PtrToString(IntPtr ptr)
     {

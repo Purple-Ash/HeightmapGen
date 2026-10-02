@@ -27,7 +27,7 @@ BPGeneratorImpl::BPGeneratorImpl(
         const Ort::SessionOptions& sessionOptions,
         const char* modelPath
 )
-:   GeneratorImpl(ctx, settings),
+:   GeneratorImpl(ctx, commonSettings),
     session(env,
         modelPath,
         sessionOptions
@@ -59,11 +59,11 @@ BPGeneratorImpl::BPGeneratorImpl(
 };
 
 bool BPGeneratorImpl::isDeterministic() { return false; }
-float BPGeneratorImpl::getHeight(float posX, float posY) { return 0.0f; }
+float BPGeneratorImpl::getHeight(Vec2Int pos) { return 0.0f; }
 int64_t BPGeneratorImpl::getResolution() { return settings.resolution; };
 size_t BPGeneratorImpl::getOutputElementsCount() { return outputTensorElements; };
 
-void BPGeneratorImpl::generateChunkData(int32_t chunkX, int32_t chunkY, float* buffer) {
+void BPGeneratorImpl::generateChunkData(Vec2Int chunkPos, float* buffer) {
     // Initialize the random input tensor
     torchRandn(inputBuffer);
 
