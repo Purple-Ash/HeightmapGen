@@ -200,6 +200,27 @@ TEST(CoreTests, GetChunks5by5_Using_getChunk_and_getPoint){
     }
 }
 
+TEST(OrtModelTests, BPModelInvalidPathTest) {
+    Context ctx = createContext();
+    CommonSettings commonSettings{42, 1.0f, 1.0f, 3, true};
+
+    const char* invalidPaths[] = {
+        nullptr,
+        "missing.onnx",
+    };
+    for (const char* modelPath : invalidPaths) {
+        Generator gen = nullptr;
+        EXPECT_NO_THROW(gen = createBPGenerator(ctx, commonSettings, modelPath));
+        EXPECT_EQ(gen, nullptr);
+        destroyGenerator(gen);
+    }
+
+    // Failed loads must leave the context usable for subsequent creation.
+    Generator gen = createBPGenerator(ctx, commonSettings, "identity.onnx");
+    EXPECT_NE(gen, nullptr);
+    destroyContext(ctx);
+}
+
 TEST(OrtModelTests, BPModelSmokeTest) {
     Context ctx = createContext();
     CommonSettings commonSettings{};

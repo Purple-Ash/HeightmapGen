@@ -39,8 +39,7 @@ void torchRandn(std::vector<float>& buffer) {
 BPGeneratorImpl::BPGeneratorImpl(
         ContextImpl* ctx, 
         const CommonSettings& commonSettings, 
-        const char* modelPath,
-        std::error_code& ec
+        const char* modelPath
 )
 :   GeneratorImpl(ctx, commonSettings),
     session(runtimeEnvironment(),
@@ -66,17 +65,15 @@ BPGeneratorImpl::BPGeneratorImpl(
     outputTensorShape(session.GetOutputTypeInfo(0).GetTensorTypeAndShapeInfo().GetShape()),
     outputLayerName(session.GetOutputNameAllocated(0, allocator))    
 {
+    if (settings.resolution != outputTensorShape.back()) {
+        throw std::runtime_error("Model output resolution does not match the requested resolution");
+    }
+
     // Bind the reused input buffer
     ioBinding.BindInput(inputLayerName.get(), inputValue);
-
-    if (settings.resolution != outputTensorShape.back()) {
-        ec = std::make_error_code(std::errc::invalid_argument);
-        settings.resolution = outputTensorShape.back();
-	}
 };
 
 bool BPGeneratorImpl::isDeterministic() { return false; }
-float BPGeneratorImpl::getHeight(Vec2Int pos) { return 0.0f; }
 
 void BPGeneratorImpl::generateChunkData(Vec2Int chunkPos, float* buffer) {
     // Initialize the random input tensor
@@ -99,3 +96,16 @@ void BPGeneratorImpl::generateChunkData(Vec2Int chunkPos, float* buffer) {
     session.Run(runOptions, ioBinding);
 }
 
+float BPGeneratorImpl::getHeight(Vec2Int pos) {
+    int32_t stride = std::max(settings.resolution - 1, 1);
+    Vec2Int chunkPos = pointToChunk(pos);
+    // getChunk will create a new cache entry. Later getPoint calls will be able to reuse the cached data and getHeight will not be called again.
+    std::vector<float> chunkData(settings.resolution * settings.resolution);
+    getChunk(chunkPos, chunkData.data());
+    Vec2Int localPos = pos - (chunkPos * stride);
+    if (localPos.x < 0 || localPos.x >= settings.resolution || localPos.y < 0 || localPos.y >= settings.resolution) {
+        return 0.0f;
+    }
+    float height = chunkData[localPos.x * settings.resolution + localPos.y];
+    return height;
+}

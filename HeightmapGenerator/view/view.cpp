@@ -70,13 +70,28 @@ Generator createHydraulicErosion(float scale, float amplitude, Generator generat
 	return createHydraulicErosionGenerator(ctx, settings, hes);
 }
 
+Generator createBPGenerator(float scale, float amplitude, const char* modelPath) {
+	CommonSettings settings {};
+	settings.seed = 42;
+	settings.scale = scale;
+	settings.amplitude = amplitude;
+	settings.resolution = 512;
+	settings.cacheable = true;
+	Generator gen = createBPGenerator(ctx, settings, modelPath);
+	if (!gen) {
+		printf("Failed to create BPGenerator with model path: %s\n", modelPath);
+	}
+	return gen;
+}
+
 static std::vector<Sampler> samplers = {
 	{createSimple(createRandomGenerator, 1, 1), "Random Generator"},
 	{createSimple(createCoordinateGenerator, 0.5, 0.001), "Coordinate Generator"},
 	{createSimple(createVoronoiGenerator, 0.03, 1), "Voronoi Generator"},
 	{createSimple(createPerlinGenerator, 0.05, 1), "Perlin Generator"},
 	{createSimple(createBrownianPerlinGenerator, 0.01, 1), "Brownian Perlin Generator"},
-	{createHydraulicErosion(0.01, 1, createSimple(createBrownianPerlinGenerator, 0.01, 1)), "Hydraulic Erosion Generator"}
+	{createBPGenerator(1, 1, "best_step6126.onnx"), "BP Generator (best_step6126.onnx)"},
+	{createHydraulicErosion(0.01, 1, createSimple(createBrownianPerlinGenerator, 0.01, 1)), "Hydraulic Erosion Generator"},
 };
 
 void window_close_handler() {
@@ -114,6 +129,13 @@ int main(int argc, char *argv[]) {
 	glGenFramebuffers(1, &read_fb);
 	glBindFramebuffer(GL_READ_FRAMEBUFFER, read_fb);
 	glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, texture, 0);
+
+	for (int i = 0; i < samplers.size(); i++) {
+		if (!samplers[i].generator) {
+			samplers.erase(samplers.begin() + i);
+			i--;
+		}
+	}
 
 	while (should_run) {
 		winxPollEvents();

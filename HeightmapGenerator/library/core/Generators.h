@@ -144,12 +144,10 @@ public:
     /// @param ctx base generator context
     /// @param commonSettings mostly unused, save for cacheability. Resolution will be overriden by the model's real resolution
     /// @param modelPath relative path to .onnx file with exported model
-    /// @param ec error code return
     BPGeneratorImpl(
         ContextImpl* ctx, 
         const CommonSettings& commonSettings, 
-        const char* modelPath,
-        std::error_code& ec
+        const char* modelPath
     );
 
     bool isDeterministic() override;

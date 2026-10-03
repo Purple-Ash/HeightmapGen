@@ -2,6 +2,7 @@
 #include "HeightmapGenContext.h"
 #include "Generators.h"
 #include <algorithm>
+#include <filesystem>
 
 HG_API const char* smokeTest(const char* data) {
     return data;
@@ -58,13 +59,14 @@ HG_API Generator createHydraulicErosionGenerator(Context ctx, CommonSettings com
 }
 
 HG_API Generator createBPGenerator(Context ctx, CommonSettings commonSettings, const char* modelPath) {
-    if (!ctx || !modelPath) return nullptr;
+    if (!ctx || !modelPath || !*modelPath) return nullptr;
 	std::error_code ec;
-    Generator gen = new BPGeneratorImpl(ctx, commonSettings, modelPath, ec);
-    if (ec) {
-        delete gen;
+    Generator gen;
+    try {
+        gen = new BPGeneratorImpl(ctx, commonSettings, modelPath);
+    } catch (const std::exception&) {
         return nullptr;
-	}
+    }
     ctx->generators.push_back(gen);
     return gen;
 }
