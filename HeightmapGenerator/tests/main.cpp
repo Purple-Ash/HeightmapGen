@@ -1,7 +1,6 @@
 #include "HeightmapGenAPI.h"
 #include "../library/core/Helpers.h"
 #include <gtest/gtest.h>
-#include "onnxruntime_cxx_api.h"
 #include <vector>
 
 #include "../library/core/Generators.h"
@@ -201,30 +200,38 @@ TEST(CoreTests, GetChunks5by5_Using_getChunk_and_getPoint){
     }
 }
 
-TEST(OrtModelTests, BPModelSmokeTest)
-{
+TEST(OrtModelTests, BPModelSmokeTest) {
     Context ctx = createContext();
-    // not really caring about anything other than cache
-    // resolution will be overriden based on model anyway
     CommonSettings commonSettings{};
+    commonSettings.resolution = 3;
+    commonSettings.scale = 1.0f;
     commonSettings.cacheable = true;
     
-    Ort::Env env(OrtLoggingLevel::ORT_LOGGING_LEVEL_WARNING, "OrtEnv");
-    Ort::SessionOptions sessionOptions;
-    sessionOptions.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_DISABLE_ALL);
-    const char* modelPath = "../../models/best_step6126.onnx";
+    const char* modelPath = "identity.onnx";
 
-    Generator gen = createBPGenerator(ctx, commonSettings, env, modelPath, sessionOptions);
-    EXPECT_NE(gen, nullptr);
+    Generator gen = createBPGenerator(ctx, commonSettings, modelPath);
+    ASSERT_NE(gen, nullptr);
 
-    auto* impl = static_cast<BPGeneratorImpl*>(gen);
-    std::vector<float> chunkData(impl->getOutputElementsCount());
+    std::vector<float> chunkData(commonSettings.resolution * commonSettings.resolution);
     getChunk(gen, 1, 1, chunkData.data());
 
     float pointSample = getPoint(gen, 10, 10);
     (void)pointSample;
 
     destroyGenerator(gen);
+    destroyContext(ctx);
+}
+
+TEST(OrtModelTests, BPModelSizeMismatchTest) {
+    Context ctx = createContext();
+    CommonSettings commonSettings{};
+    commonSettings.resolution = 10;
+    commonSettings.scale = 1.0f;
+    commonSettings.cacheable = true;
+    
+    const char* modelPath = "identity.onnx";
+    Generator gen = createBPGenerator(ctx, commonSettings, modelPath);
+    ASSERT_EQ(gen, nullptr);
     destroyContext(ctx);
 }
 

@@ -1,8 +1,10 @@
 #pragma once
 #include "HeightmapGenAPI.h"
 #include "HeightmapGenContext.h"
+#include "onnxruntime_cxx_api.h"
 #include <vector>
 #include <unordered_map>
+#include <system_error>
 
 struct GeneratorImpl {
 protected:
@@ -133,24 +135,22 @@ class BPGeneratorImpl : public GeneratorImpl {
     std::vector<int64_t> outputTensorShape;
     // effectively resolution^2 and number of elements in output buffer
     std::size_t outputTensorElements; 
+
+    void generateChunkData(Vec2Int chunkPos, float* buffer) override;
+    float getHeight(Vec2Int pos) override;
+
 public:
     /// @brief 
     /// @param ctx base generator context
     /// @param commonSettings mostly unused, save for cacheability. Resolution will be overriden by the model's real resolution
-    /// @param env Ort::Env used to create session, there should only ever be one per process. BPGenerator MUST not live longer then the env.
-    /// @param sessionOptions options for model session
     /// @param modelPath relative path to .onnx file with exported model
+    /// @param ec error code return
     BPGeneratorImpl(
         ContextImpl* ctx, 
         const CommonSettings& commonSettings, 
-        const Ort::Env& env,
-        const Ort::SessionOptions& sessionOptions,
-        const char* modelPath
+        const char* modelPath,
+        std::error_code& ec
     );
-    void generateChunkData(Vec2Int chunkPos, float* buffer) override;
+
     bool isDeterministic() override;
-    float getHeight(Vec2Int pos) override;
-    /// @brief Return the resolution read from model
-    int64_t getResolution();
-    size_t getOutputElementsCount();
 };

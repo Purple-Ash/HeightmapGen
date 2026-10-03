@@ -102,3 +102,5 @@ target_link_libraries(Tests PRIVATE
     Threads::Threads
 )
 copy_onnxruntime(Tests)
+
+configure_file(tests/models/identity.onnx "identity.onnx" COPYONLY)

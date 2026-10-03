@@ -1,6 +1,5 @@
 #pragma once
 #include <cstdint>
-#include "onnxruntime_cxx_api.h"
 
 #ifdef _WIN32
 #ifdef HeightmapGen_EXPORTS
@@ -54,7 +53,7 @@ extern "C" {
     HG_API Generator createHydraulicErosionGenerator(Context ctx, CommonSettings commonSettings, HydraulicErosionSettings erosionSettings);
     HG_API Generator createPerlinGenerator(Context ctx, CommonSettings commonSettings);
     HG_API Generator createBrownianPerlinGenerator(Context ctx, CommonSettings commonSettings);
-    HG_API Generator createBPGenerator(Context ctx, CommonSettings commonSettings, const Ort::Env &env, const char* modelPath, const Ort::SessionOptions &sessionOptions = Ort::SessionOptions{nullptr});
+    HG_API Generator createBPGenerator(Context ctx, CommonSettings commonSettings, const char* modelPath);
     HG_API void destroyGenerator(Generator generator);
 
     HG_API void getChunk(Generator generator, int32_t x, int32_t y, float* buffer);

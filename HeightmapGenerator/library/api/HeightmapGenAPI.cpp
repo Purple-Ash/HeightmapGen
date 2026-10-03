@@ -57,15 +57,14 @@ HG_API Generator createHydraulicErosionGenerator(Context ctx, CommonSettings com
     return gen;
 }
 
-HG_API Generator createBPGenerator(
-    Context ctx, 
-    CommonSettings commonSettings,
-    const Ort::Env &env,
-    const char* modelPath,
-    const Ort::SessionOptions &sessionOptions
-) {
-    if (!ctx || !env) return nullptr;
-    Generator gen = new BPGeneratorImpl(ctx, commonSettings, env, sessionOptions, modelPath);
+HG_API Generator createBPGenerator(Context ctx, CommonSettings commonSettings, const char* modelPath) {
+    if (!ctx || !modelPath) return nullptr;
+	std::error_code ec;
+    Generator gen = new BPGeneratorImpl(ctx, commonSettings, modelPath, ec);
+    if (ec) {
+        delete gen;
+        return nullptr;
+	}
     ctx->generators.push_back(gen);
     return gen;
 }
