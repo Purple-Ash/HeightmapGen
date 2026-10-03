@@ -22,24 +22,7 @@ FetchContent_MakeAvailable(googletest)
 # ONNX Runtime
 # ------------------------------------------------------------
 
-if(WIN32)
-    set(ONNXRUNTIME_ROOT "../third-party/onnxruntime")
-else()
-    set(ONNXRUNTIME_ROOT "/opt/onnxruntime")
-endif()
-
-add_library(onnxruntime SHARED IMPORTED)
-
-set_target_properties(onnxruntime PROPERTIES
-    IMPORTED_LOCATION
-        "${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so"
-
-    INTERFACE_INCLUDE_DIRECTORIES
-        "${ONNXRUNTIME_ROOT}/include"
-
-    BUILD_RPATH
-        "${ONNXRUNTIME_ROOT}/lib"
-)
+include(cmake/OnnxRuntime.cmake)
 
 # ------------------------------------------------------------
 # HeightmapGen
@@ -59,18 +42,16 @@ target_include_directories(HeightmapGen
 )
 
 target_link_libraries(HeightmapGen
-    PUBLIC onnxruntime
+    PUBLIC onnxruntime::onnxruntime
 )
+copy_onnxruntime(HeightmapGen)
+if(UNIX)
+    set_target_properties(HeightmapGen PROPERTIES BUILD_RPATH "$ORIGIN")
+endif()
 
 # ------------------------------------------------------------
-# Tests
+# Viewer
 # ------------------------------------------------------------
-
-file(GLOB_RECURSE  TEST_SOURCES tests/*.cpp)
-
-add_executable(Tests
-    ${TEST_SOURCES}
-)
 
 if (NOT DEFINED ENV{CI})
 	add_executable(view
@@ -104,8 +85,15 @@ if (NOT DEFINED ENV{CI})
 			${winx_SOURCE_DIR}
 			${GLAD_INCLUDE_DIRS}
 	)
+    copy_onnxruntime(view)
 endif()
 
+# ------------------------------------------------------------
+# Tests
+# ------------------------------------------------------------
+
+file(GLOB_RECURSE TEST_SOURCES tests/*.cpp)
+add_executable(Tests ${TEST_SOURCES})
 find_package(Threads REQUIRED)
 
 target_link_libraries(Tests PRIVATE
@@ -113,3 +101,4 @@ target_link_libraries(Tests PRIVATE
     GTest::gtest_main
     Threads::Threads
 )
+copy_onnxruntime(Tests)

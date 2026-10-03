@@ -1,8 +1,5 @@
 name: ci.yml
 
-env:
-  ONNXRUNTIME_VERSION: 1.29.0
-
 on: [push]
 
 jobs:
@@ -15,10 +12,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake g++
-          mkdir -p /opt/onnxruntime
-          curl -fL "https://github.com/microsoft/onnxruntime/releases/download/v$ONNXRUNTIME_VERSION/onnxruntime-linux-x64-$ONNXRUNTIME_VERSION.tgz" -o /tmp/onnxruntime.tgz
-          tar -xzf /tmp/onnxruntime.tgz --strip-components=1 -C /opt/onnxruntime 
-          rm /tmp/onnxruntime.tgz
 
       - name: Configure
         run: cmake ./HeightmapGenerator -B build
