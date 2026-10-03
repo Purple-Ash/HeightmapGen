@@ -5,6 +5,9 @@ import net.darktree.heightmapclient.api.HgContext;
 import net.darktree.heightmapclient.api.HgGenerator;
 import net.darktree.heightmapclient.api.HgHydraulicErosionSettings;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.entity.event.v1.ServerPlayerEvents;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
 import net.minecraft.resources.Identifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -62,6 +65,15 @@ public class HgMod implements ModInitializer {
 		HYDRAULIC = HgHydraulicErosionSettings.create()
 				.setSeed(42)
 				.setBaseGeneratorImpl(GeneratorType.BROWNIAN);
+
+		ServerPlayerEvents.JOIN.register(player -> {
+			Commands commands = player.level().getServer().getCommands();
+			CommandSourceStack source = player.createCommandSourceStack();
+
+			// splendid
+			commands.performPrefixedCommand(source, "/execute as @s in heightmapgen:test run tp @s 0 30 0");
+			commands.performPrefixedCommand(source, "/gamemode spectator");
+		});
 	}
 
 	private static HgGenerator createGenerator() {

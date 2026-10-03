@@ -7,6 +7,7 @@
     "config.heightmapgen.option.mainGenerator": "Active Generator",
     "config.heightmapgen.option.baseGenerator": "Base Hydraulic",
 
+    "config.heightmapgen.option.common.seed": "Seed: %s",
     "config.heightmapgen.option.common.scale": "Scale: %s",
     "config.heightmapgen.option.common.amplitude": "Amplitude: %s",
     "config.heightmapgen.option.common.resolution": "Resolution: %s",

@@ -3,10 +3,8 @@ package net.darktree.heightmapclient.api.binding;
 import com.sun.jna.Library;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
-import net.darktree.heightmapclient.api.HgCommonSettings;
 
 import java.nio.Buffer;
-import java.util.List;
 
 public interface HeightmapGen extends Library {
 

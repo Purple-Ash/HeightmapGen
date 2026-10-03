@@ -6,14 +6,10 @@ import net.darktree.heightmapclient.HgMod;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.OptionInstance;
-import net.minecraft.client.PreferredGraphicsApi;
-import net.minecraft.client.gui.components.Tooltip;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.options.OptionsSubScreen;
-import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -80,8 +76,10 @@ public class HgOptionsScreen extends OptionsSubScreen {
 
 		final OptionInstance<GeneratorType> mainGenerator = createEnumOption("mainGenerator", GeneratorType.values(), HgMod.TYPE, GeneratorType.CODEC, GeneratorType::getCaption, HgMod::setGeneratorType);
 		final OptionInstance<GeneratorType> baseGenerator = createEnumOption("baseGenerator", GeneratorType.valuesExceptHydraulic(), HgMod.HYDRAULIC.type, GeneratorType.CODEC, GeneratorType::getCaption, HgMod.HYDRAULIC::setBaseGeneratorImpl);
+		final OptionInstance<Integer> seed = createIntOption("common.seed", 0, 1000, () -> (int) HgMod.COMMON.getSeed(), HgMod.COMMON::setSeed);
 
 		list.addSmall(mainGenerator, baseGenerator);
+		list.addBig(seed);
 
 		final OptionInstance<Float> scale = createFloatOption("common.scale", 0.0f, 1.0f, HgMod.COMMON::getScale, HgMod.COMMON::setScale);
 		final OptionInstance<Float> amplitude = createFloatOption("common.amplitude", 0.0f, 1.0f, HgMod.COMMON::getAmplitude, HgMod.COMMON::setAmplitude);
