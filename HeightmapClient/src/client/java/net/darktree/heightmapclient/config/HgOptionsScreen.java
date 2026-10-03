@@ -23,6 +23,7 @@ public class HgOptionsScreen extends OptionsSubScreen {
 
 	private static final Component COMMON_HEADER = Component.translatable("config.heightmapgen.header.common").withStyle(ChatFormatting.UNDERLINE, ChatFormatting.BOLD);
 	private static final Component HYDRAULIC_HEADER = Component.translatable("config.heightmapgen.header.hydraulic").withStyle(ChatFormatting.UNDERLINE, ChatFormatting.BOLD);
+	private static final Component MINECRAFT_HEADER = Component.translatable("config.heightmapgen.header.minecraft").withStyle(ChatFormatting.UNDERLINE, ChatFormatting.BOLD);
 
 	public HgOptionsScreen(Screen parent) {
 		super(parent, Minecraft.getInstance().options, Component.translatable("config.heightmapgen.title"));
@@ -105,6 +106,12 @@ public class HgOptionsScreen extends OptionsSubScreen {
 
 		list.addHeader(HYDRAULIC_HEADER);
 		list.addSmall(initialWaterVolume, initialSpeed, gravity, evaporateSpeed, depositSpeed, erodeSpeed, minSedimentCapacity, sedimentCapacityFactor, inertia, maxDropletLifetime, erosionRadius, numIterations);
+
+		final OptionInstance<Boolean> dirtize = createBoolOption("minecraft.dirtize", () -> HgMod.DIRTIZE_SURFACE, v -> HgMod.DIRTIZE_SURFACE = v);
+		final OptionInstance<Boolean> decorate = createBoolOption("minecraft.decorate", () -> HgMod.DECORATE_SURFACE, v -> HgMod.DECORATE_SURFACE = v);
+
+		list.addHeader(MINECRAFT_HEADER);
+		list.addSmall(dirtize, decorate);
 	}
 
 	@Override

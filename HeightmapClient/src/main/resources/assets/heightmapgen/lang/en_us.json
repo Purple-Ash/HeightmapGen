@@ -2,6 +2,7 @@
     "config.heightmapgen.title": "HeightmapGen Client Settings",
     "config.heightmapgen.header.common": "Common Generator Settings",
     "config.heightmapgen.header.hydraulic": "Hydraulic Generator Settings",
+    "config.heightmapgen.header.minecraft": "General Minecraft Settings",
 
     "config.heightmapgen.option.mainGenerator": "Active Generator",
     "config.heightmapgen.option.baseGenerator": "Base Hydraulic",
@@ -22,6 +23,9 @@
     "config.heightmapgen.option.hydraulic.evaporateSpeed": "Evaporate Speed: %s",
     "config.heightmapgen.option.hydraulic.gravity": "Gravity: %s",
     "config.heightmapgen.option.hydraulic.initialSpeed": "Initial Speed: %s",
-    "config.heightmapgen.option.hydraulic.initialWaterVolume": "Initial Water Volume: %s"
+    "config.heightmapgen.option.hydraulic.initialWaterVolume": "Initial Water Volume: %s",
+
+    "config.heightmapgen.option.minecraft.dirtize": "Dirtize Surface",
+    "config.heightmapgen.option.minecraft.decorate": "Decorate Surface"
 }
 
