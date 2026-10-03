@@ -3,6 +3,7 @@ package net.darktree.heightmapclient.impl;
 import com.mojang.serialization.MapCodec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 import net.darktree.heightmapclient.HgMod;
+import net.darktree.heightmapclient.api.HgGenerator;
 import net.minecraft.core.*;
 import net.minecraft.resources.RegistryOps;
 import net.minecraft.server.level.WorldGenRegion;
@@ -107,6 +108,8 @@ public final class HgChunkGenerator extends ChunkGenerator {
 		BlockPos.MutableBlockPos pos = new BlockPos.MutableBlockPos();
 		BlockState stone = Blocks.STONE.defaultBlockState();
 
+		HgGenerator generator = HgMod.getGenerator();
+
 		ChunkPos centerPos = chunk.getPos();
 		int cx = centerPos.x();
 		int cz = centerPos.z();
@@ -116,7 +119,7 @@ public final class HgChunkGenerator extends ChunkGenerator {
 				final int wx = SectionPos.sectionToBlockCoord(cx, x);
 				final int wz = SectionPos.sectionToBlockCoord(cz, z);
 
-				int height = getHeight(wx, wz);
+				int height = (int) (generator.getPoint(wx, wz) * HEIGHT);
 
 				if (height > HEIGHT) {
 					height = HEIGHT;
@@ -127,10 +130,6 @@ public final class HgChunkGenerator extends ChunkGenerator {
 				}
 			}
 		}
-	}
-
-	private int getHeight(int x, int z) {
-		return (int) (HgMod.GENERATOR.getPoint(x, z) * HEIGHT);
 	}
 
 	private void placeSurfaceDirt(WorldGenLevel level, ChunkAccess chunk) {

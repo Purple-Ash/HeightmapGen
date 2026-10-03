@@ -1,0 +1,27 @@
+{
+    "config.heightmapgen.title": "HeightmapGen Client Settings",
+    "config.heightmapgen.header.common": "Common Generator Settings",
+    "config.heightmapgen.header.hydraulic": "Hydraulic Generator Settings",
+
+    "config.heightmapgen.option.mainGenerator": "Active Generator",
+    "config.heightmapgen.option.baseGenerator": "Base Hydraulic",
+
+    "config.heightmapgen.option.common.scale": "Scale: %s",
+    "config.heightmapgen.option.common.amplitude": "Amplitude: %s",
+    "config.heightmapgen.option.common.resolution": "Resolution: %s",
+    "config.heightmapgen.option.common.cachable": "Cachable",
+
+    "config.heightmapgen.option.hydraulic.numIterations": "Iterations: %s",
+    "config.heightmapgen.option.hydraulic.erosionRadius": "Erosion Radius: %s",
+    "config.heightmapgen.option.hydraulic.maxDropletLifetime": "Max Droplet Lifetime: %s",
+    "config.heightmapgen.option.hydraulic.inertia": "Inertia: %s",
+    "config.heightmapgen.option.hydraulic.sedimentCapacityFactor": "Sediment Capacity Factor: %s",
+    "config.heightmapgen.option.hydraulic.minSedimentCapacity": "Min Sediment Capacity: %s",
+    "config.heightmapgen.option.hydraulic.erodeSpeed": "Erode Speed: %s",
+    "config.heightmapgen.option.hydraulic.depositSpeed": "Deposit Speed: %s",
+    "config.heightmapgen.option.hydraulic.evaporateSpeed": "Evaporate Speed: %s",
+    "config.heightmapgen.option.hydraulic.gravity": "Gravity: %s",
+    "config.heightmapgen.option.hydraulic.initialSpeed": "Initial Speed: %s",
+    "config.heightmapgen.option.hydraulic.initialWaterVolume": "Initial Water Volume: %s"
+}
+

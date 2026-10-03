@@ -12,6 +12,9 @@
     "entrypoints": {
         "main": [
             "net.darktree.heightmapclient.HgMod"
+        ],
+        "modmenu": [
+            "net.darktree.heightmapclient.config.Menu"
         ]
     },
     "mixins": [

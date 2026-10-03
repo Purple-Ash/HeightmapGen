@@ -1,5 +1,6 @@
 package net.darktree.heightmapclient.api;
 
+import net.darktree.heightmapclient.GeneratorType;
 import net.darktree.heightmapclient.api.binding.HeightmapGen;
 
 public class HgHydraulicErosionSettings {
@@ -10,12 +11,14 @@ public class HgHydraulicErosionSettings {
 		settings = new HeightmapGen.HydraulicErosionSettings();
 	}
 
+	public GeneratorType type;
+
 	public static HgHydraulicErosionSettings create() {
 		return new HgHydraulicErosionSettings();
 	}
 
-	public HgHydraulicErosionSettings setBaseGeneratorImpl(HgGenerator generator) {
-		settings.baseGeneratorImpl = generator.getHandle();
+	public HgHydraulicErosionSettings setBaseGeneratorImpl(GeneratorType type) {
+		this.type = type;
 		return this;
 	}
 
@@ -84,7 +87,60 @@ public class HgHydraulicErosionSettings {
 		return this;
 	}
 
+	public float getInitialWaterVolume() {
+		return settings.initialWaterVolume;
+	}
+
+	public float getInitialSpeed() {
+		return settings.initialSpeed;
+	}
+
+	public float getGravity() {
+		return settings.gravity;
+	}
+
+	public float getEvaporateSpeed() {
+		return settings.evaporateSpeed;
+	}
+
+	public float getDepositSpeed() {
+		return settings.depositSpeed;
+	}
+
+	public float getErodeSpeed() {
+		return settings.erodeSpeed;
+	}
+
+	public float getMinSedimentCapacity() {
+		return settings.minSedimentCapacity;
+	}
+
+	public float getSedimentCapacityFactor() {
+		return settings.sedimentCapacityFactor;
+	}
+
+	public float getInertia() {
+		return settings.inertia;
+	}
+
+	public int getMaxDropletLifetime() {
+		return settings.maxDropletLifetime;
+	}
+
+	public int getErosionRadius() {
+		return settings.erosionRadius;
+	}
+
+	public int getNumIterations() {
+		return settings.numIterations;
+	}
+
+	public int getSeed() {
+		return settings.seed;
+	}
+
 	HeightmapGen.HydraulicErosionSettings getSettings() {
+		settings.baseGeneratorImpl = type.createInstance().getHandle();
 		return settings;
 	}
 

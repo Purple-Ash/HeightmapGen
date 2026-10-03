@@ -39,6 +39,26 @@ public final class HgCommonSettings {
 		return this;
 	}
 
+	public long getSeed() {
+		return settings.seed;
+	}
+
+	public boolean getCacheable() {
+		return settings.cacheable;
+	}
+
+	public int getResolution() {
+		return settings.resolution;
+	}
+
+	public float getAmplitude() {
+		return settings.amplitude;
+	}
+
+	public float getScale() {
+		return settings.scale;
+	}
+
 	HeightmapGen.CommonSettings getSettings() {
 		return settings;
 	}
