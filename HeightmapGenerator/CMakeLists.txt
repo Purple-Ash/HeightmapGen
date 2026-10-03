@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 2.8...4.0)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 project(HeightmapGen)
 
 set(CMAKE_CXX_STANDARD 20)
@@ -21,24 +22,7 @@ FetchContent_MakeAvailable(googletest)
 # ONNX Runtime
 # ------------------------------------------------------------
 
-if(WIN32)
-    set(ONNXRUNTIME_ROOT "../third-party/onnxruntime")
-else()
-    set(ONNXRUNTIME_ROOT "/opt/onnxruntime")
-endif()
-
-add_library(onnxruntime SHARED IMPORTED)
-
-set_target_properties(onnxruntime PROPERTIES
-    IMPORTED_LOCATION
-        "${ONNXRUNTIME_ROOT}/lib/libonnxruntime.so"
-
-    INTERFACE_INCLUDE_DIRECTORIES
-        "${ONNXRUNTIME_ROOT}/include"
-
-    BUILD_RPATH
-        "${ONNXRUNTIME_ROOT}/lib"
-)
+include(cmake/OnnxRuntime.cmake)
 
 # ------------------------------------------------------------
 # HeightmapGen
@@ -58,19 +42,58 @@ target_include_directories(HeightmapGen
 )
 
 target_link_libraries(HeightmapGen
-    PUBLIC onnxruntime
+    PUBLIC onnxruntime::onnxruntime
 )
+copy_onnxruntime(HeightmapGen)
+if(UNIX)
+    set_target_properties(HeightmapGen PROPERTIES BUILD_RPATH "$ORIGIN")
+endif()
+
+# ------------------------------------------------------------
+# Viewer
+# ------------------------------------------------------------
+
+if (NOT DEFINED ENV{CI})
+	add_executable(view
+			view/view.cpp
+	)
+
+	FetchContent_Declare(
+			winx
+			GIT_REPOSITORY https://github.com/dark-tree/winx
+			GIT_TAG        2c4100f986ae3876425e43f1fcfd6fc3eebe0a9d
+	)
+
+	FetchContent_Declare(
+			glad
+			GIT_REPOSITORY https://github.com/Dav1dde/glad
+			GIT_TAG        v0.1.36
+	)
+
+	set(GLAD_PROFILE "core" CACHE STRING "OpenGL profile")
+	set(GLAD_GENERATOR "c" CACHE STRING "Language to generate the binding for")
+
+	FetchContent_MakeAvailable(winx glad)
+
+	target_link_libraries(view PRIVATE
+			HeightmapGen
+			winx
+			glad
+	)
+
+	target_include_directories(view PRIVATE
+			${winx_SOURCE_DIR}
+			${GLAD_INCLUDE_DIRS}
+	)
+    copy_onnxruntime(view)
+endif()
 
 # ------------------------------------------------------------
 # Tests
 # ------------------------------------------------------------
 
-file(GLOB_RECURSE  TEST_SOURCES tests/*.cpp)
-
-add_executable(Tests
-    ${TEST_SOURCES}
-)
-
+file(GLOB_RECURSE TEST_SOURCES tests/*.cpp)
+add_executable(Tests ${TEST_SOURCES})
 find_package(Threads REQUIRED)
 
 target_link_libraries(Tests PRIVATE
@@ -78,3 +101,6 @@ target_link_libraries(Tests PRIVATE
     GTest::gtest_main
     Threads::Threads
 )
+copy_onnxruntime(Tests)
+
+configure_file(tests/models/identity.onnx "identity.onnx" COPYONLY)
