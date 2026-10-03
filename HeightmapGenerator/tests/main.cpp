@@ -243,6 +243,43 @@ TEST(OrtModelTests, BPModelSmokeTest) {
     destroyContext(ctx);
 }
 
+TEST(OrtModelTests, BPModelSeedDeterminism) {
+    Context ctx = createContext();
+    CommonSettings settings{42, 1.0f, 1.0f, 3, false};
+    Generator first = createBPGenerator(ctx, settings, "identity.onnx");
+    Generator second = createBPGenerator(ctx, settings, "identity.onnx");
+    settings.seed += uint64_t{1} << 32;
+    Generator differentSeed = createBPGenerator(ctx, settings, "identity.onnx");
+    ASSERT_NE(first, nullptr);
+    ASSERT_NE(second, nullptr);
+    ASSERT_NE(differentSeed, nullptr);
+
+    std::vector<float> expected(9), actual(9), otherChunk(9);
+    getChunk(first, -2, 3, expected.data());
+    getChunk(first, 3, -2, otherChunk.data());
+    EXPECT_NE(expected, otherChunk);
+    getChunk(first, -2, 3, actual.data());
+    EXPECT_EQ(expected, actual);
+    getChunk(second, 3, -2, actual.data());
+    EXPECT_EQ(otherChunk, actual);
+    getChunk(second, -2, 3, actual.data());
+    EXPECT_EQ(expected, actual);
+    EXPECT_EQ(getPoint(first, -3, 7), expected[4]);
+    getChunk(differentSeed, -2, 3, actual.data());
+    EXPECT_NE(expected, actual);
+
+    settings.seed = 42;
+    settings.cacheable = true;
+    Generator cached = createBPGenerator(ctx, settings, "identity.onnx");
+    ASSERT_NE(cached, nullptr);
+    getChunk(cached, -2, 3, actual.data());
+    EXPECT_EQ(expected, actual);
+    cleanChunkFromCache(cached, -2, 3);
+    getChunk(cached, -2, 3, actual.data());
+    EXPECT_EQ(expected, actual);
+    destroyContext(ctx);
+}
+
 TEST(OrtModelTests, BPModelSizeMismatchTest) {
     Context ctx = createContext();
     CommonSettings commonSettings{};

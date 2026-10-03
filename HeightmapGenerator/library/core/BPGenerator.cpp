@@ -18,9 +18,8 @@ Ort::SessionOptions makeSessionOptions() {
 
 /// @brief Fills out the given vector with numbers generated similarly to PyTorch.randn()
 /// @param buffer Vector to be filled with random numbers
-void torchRandn(std::vector<float>& buffer) {
-    thread_local std::random_device rnd;
-    thread_local std::mt19937 gen(rnd());
+void torchRandn(std::vector<float>& buffer, std::seed_seq& seed) {
+    std::mt19937 gen(seed);
     std::uniform_real_distribution<float> dist(0.0f, 1.0f);
 
     for (size_t i = 0; i < buffer.size(); i += 2)
@@ -73,11 +72,16 @@ BPGeneratorImpl::BPGeneratorImpl(
     ioBinding.BindInput(inputLayerName.get(), inputValue);
 };
 
-bool BPGeneratorImpl::isDeterministic() { return false; }
+bool BPGeneratorImpl::isDeterministic() { return true; }
 
 void BPGeneratorImpl::generateChunkData(Vec2Int chunkPos, float* buffer) {
-    // Initialize the random input tensor
-    torchRandn(inputBuffer);
+    std::seed_seq seed{
+        static_cast<uint32_t>(settings.seed),
+        static_cast<uint32_t>(settings.seed >> 32),
+        static_cast<uint32_t>(chunkPos.x),
+        static_cast<uint32_t>(chunkPos.y)
+    };
+    torchRandn(inputBuffer, seed);
 
     // Create Ort::Value wrapping the user-supplied buffer
     auto outputValue = Ort::Value::CreateTensor<float>(

@@ -70,12 +70,12 @@ Generator createHydraulicErosion(float scale, float amplitude, Generator generat
 	return createHydraulicErosionGenerator(ctx, settings, hes);
 }
 
-Generator createBPGenerator(float scale, float amplitude, const char* modelPath) {
+Generator createBPGenerator(int resolution, float amplitude, const char* modelPath) {
 	CommonSettings settings {};
-	settings.seed = 42;
-	settings.scale = scale;
+	settings.seed = 8;
+	settings.scale = 1.0f;
 	settings.amplitude = amplitude;
-	settings.resolution = 512;
+	settings.resolution = resolution;
 	settings.cacheable = true;
 	Generator gen = createBPGenerator(ctx, settings, modelPath);
 	if (!gen) {
@@ -90,7 +90,7 @@ static std::vector<Sampler> samplers = {
 	{createSimple(createVoronoiGenerator, 0.03, 1), "Voronoi Generator"},
 	{createSimple(createPerlinGenerator, 0.05, 1), "Perlin Generator"},
 	{createSimple(createBrownianPerlinGenerator, 0.01, 1), "Brownian Perlin Generator"},
-	{createBPGenerator(1, 1, "best_step6126.onnx"), "BP Generator (best_step6126.onnx)"},
+	{createBPGenerator(512, 1, "best_step6126.onnx"), "BP Generator (best_step6126.onnx)"},
 	{createHydraulicErosion(0.01, 1, createSimple(createBrownianPerlinGenerator, 0.01, 1)), "Hydraulic Erosion Generator"},
 };
 
