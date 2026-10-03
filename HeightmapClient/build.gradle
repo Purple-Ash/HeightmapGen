@@ -9,6 +9,28 @@ base {
     archivesName = project.archives_base_name
 }
 
+loom {
+    splitEnvironmentSourceSets()
+
+    mods {
+        "heightmapgen" {
+            sourceSet sourceSets.main
+            sourceSet sourceSets.client
+        }
+    }
+
+    runtimeOnlyLog4j = true
+}
+
+
+repositories {
+
+    // ModMenu
+    maven {
+        url 'https://maven.terraformersmc.com'
+    }
+
+}
 
 fabricApi {
     configureDataGeneration {
@@ -21,6 +43,7 @@ dependencies {
 
     implementation "net.fabricmc:fabric-loader:${project.loader_version}"
     implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    implementation "com.terraformersmc:modmenu:${project.modmenu_version}" transitive false
 }
 
 processResources {
