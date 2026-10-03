@@ -2,14 +2,11 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 public class TerrainGen : MonoBehaviour
 {
-    [SerializeField] private GameObject highestPoint;
-    [SerializeField] private GameObject lowestPoint;
     public enum GeneratorType
     {
         HydraulicErosion,
@@ -43,6 +40,9 @@ public class TerrainGen : MonoBehaviour
     [Min(0.0f)][SerializeField] private float initialWaterVolume = 1.0f;
 
     public static bool IsGenerating { get; private set; }
+    public bool HasHeightStatistics { get; private set; }
+    public float HighestHeight { get; private set; }
+    public float LowestHeight { get; private set; }
 
     private IntPtr context = IntPtr.Zero;
     private IntPtr generator = IntPtr.Zero;
@@ -62,11 +62,11 @@ public class TerrainGen : MonoBehaviour
         var keyboard = Keyboard.current;
         if (keyboard != null && keyboard[Key.R].wasPressedThisFrame)
         {
-            ReloadTerrain();
+            Regenerate();
         }
     }
 
-    private void ReloadTerrain()
+    public void Regenerate()
     {
         if (generationCoroutine != null)
         {
@@ -120,6 +120,9 @@ public class TerrainGen : MonoBehaviour
     private IEnumerator Generate()
     {
         IsGenerating = true;
+        HasHeightStatistics = false;
+        HighestHeight = 0f;
+        LowestHeight = 0f;
 
         context = HeightmapGenAPI.createContext();
         if (context == IntPtr.Zero)
@@ -261,7 +264,7 @@ public class TerrainGen : MonoBehaviour
 
                 if (hasSamples)
                 {
-                    UpdateHeightLabels(highest, lowest);
+                    UpdateHeightStatistics(highest, lowest);
                 }
 
                 // Let this chunk actually render before starting the next one.
@@ -273,17 +276,11 @@ public class TerrainGen : MonoBehaviour
         IsGenerating = false;
     }
 
-    private void UpdateHeightLabels(float highest, float lowest)
+    private void UpdateHeightStatistics(float highest, float lowest)
     {
-        if (highestPoint != null)
-        {
-            highestPoint.GetComponent<TextMeshProUGUI>().text = highest.ToString("F2");
-        }
-
-        if (lowestPoint != null)
-        {
-            lowestPoint.GetComponent<TextMeshProUGUI>().text = lowest.ToString("F2");
-        }
+        HighestHeight = highest;
+        LowestHeight = lowest;
+        HasHeightStatistics = true;
     }
 
     private void OnDestroy()
