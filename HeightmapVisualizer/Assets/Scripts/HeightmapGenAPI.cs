@@ -69,6 +69,9 @@ public static class HeightmapGenAPI
     public static extern IntPtr createBrownianPerlinGenerator(IntPtr ctx, CommonSettings commonSettings);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr createBPGenerator(IntPtr ctx, CommonSettings commonSettings, [MarshalAs(UnmanagedType.LPUTF8Str)] string modelPath);
+
+    [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr createHydraulicErosionGenerator(IntPtr ctx, CommonSettings commonSettings, HydraulicErosionSettings erosionSettings);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]

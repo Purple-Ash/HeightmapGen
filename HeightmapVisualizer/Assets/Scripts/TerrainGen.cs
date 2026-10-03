@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
@@ -14,7 +15,8 @@ public class TerrainGen : MonoBehaviour
     {
         HydraulicErosion,
         Perlin,
-        BrownianNoise
+        BrownianNoise,
+        BPGenerator
     }
 
     [Header("Terrain Common Settings")]
@@ -26,6 +28,10 @@ public class TerrainGen : MonoBehaviour
     [SerializeField] private ulong seed = 0;
     [SerializeField] private bool cacheable = true;
     [SerializeField] private GeneratorType generatorType = GeneratorType.HydraulicErosion;
+
+    [Header("BP Generator Settings")]
+    [Tooltip("ONNX model path, either absolute or relative to StreamingAssets. Resolution must match the model output.")]
+    [SerializeField] private string bpModelPath = "best_step6126.onnx";
 
     [Header("Hydraulic Erosion Settings")]
     [SerializeField] private int erosionSeed;
@@ -121,6 +127,25 @@ public class TerrainGen : MonoBehaviour
     {
         IsGenerating = true;
 
+        string resolvedBPModelPath = null;
+        if (generatorType == GeneratorType.BPGenerator)
+        {
+            if (!string.IsNullOrWhiteSpace(bpModelPath))
+            {
+                resolvedBPModelPath = Path.IsPathRooted(bpModelPath)
+                    ? bpModelPath
+                    : Path.Combine(Application.streamingAssetsPath, bpModelPath);
+            }
+
+            if (resolvedBPModelPath == null || !File.Exists(resolvedBPModelPath))
+            {
+                Debug.LogError($"BP Generator ONNX model not found: {resolvedBPModelPath ?? "(empty path)"}");
+                generationCoroutine = null;
+                IsGenerating = false;
+                yield break;
+            }
+        }
+
         context = HeightmapGenAPI.createContext();
         if (context == IntPtr.Zero)
         {
@@ -147,6 +172,10 @@ public class TerrainGen : MonoBehaviour
 
             case GeneratorType.BrownianNoise:
                 generator = HeightmapGenAPI.createBrownianPerlinGenerator(context, commonSettings);
+                break;
+
+            case GeneratorType.BPGenerator:
+                generator = HeightmapGenAPI.createBPGenerator(context, commonSettings, resolvedBPModelPath);
                 break;
 
             case GeneratorType.HydraulicErosion:
@@ -184,7 +213,10 @@ public class TerrainGen : MonoBehaviour
 
         if (generator == IntPtr.Zero)
         {
-            Debug.LogError("Failed to create Generator instance");
+            Debug.LogError(generatorType == GeneratorType.BPGenerator
+                ? $"Failed to create BP Generator from '{resolvedBPModelPath}'. Check that the model is valid and its output resolution matches {resolution}."
+                : "Failed to create Generator instance");
+            DestroyGenerators();
             generationCoroutine = null;
             IsGenerating = false;
             yield break;

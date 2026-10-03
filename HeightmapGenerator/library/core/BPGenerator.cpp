@@ -98,6 +98,10 @@ void BPGeneratorImpl::generateChunkData(Vec2Int chunkPos, float* buffer) {
 
     // Generate the chunk
     session.Run(runOptions, ioBinding);
+
+    for (size_t i = 0; i < outputTensorElements; i++) {
+		buffer[i] *= settings.amplitude;
+	}
 }
 
 float BPGeneratorImpl::getHeight(Vec2Int pos) {
