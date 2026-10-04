@@ -14,21 +14,27 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
-file(GLOB_RECURSE  LIBRARY_SOURCES library/*.cpp)
+file(GLOB_RECURSE  CORE_SOURCES library/core/*.cpp)
 file(GLOB_RECURSE  TEST_SOURCES tests/*.cpp)
 
+add_library(HeightmapGenCore SHARED
+		${CORE_SOURCES}
+)
 
 add_library(HeightmapGen SHARED
-    ${LIBRARY_SOURCES}
-        library/core/Helpers.h
-        library/core/PerlinGenerator.cpp
+		${CMAKE_SOURCE_DIR}/library/api/HeightmapGenAPI.cpp
 )
 
-target_include_directories(HeightmapGen
-    PUBLIC ${CMAKE_SOURCE_DIR}/library/api
-    PRIVATE ${CMAKE_SOURCE_DIR}/library/core
+add_library(SpringHeightmapGen SHARED
+		${CMAKE_SOURCE_DIR}/library/api/SpringHeightmapGenAPI.cpp
 )
 
+target_link_libraries(HeightmapGen PUBLIC HeightmapGenCore)
+target_link_libraries(SpringHeightmapGen PUBLIC HeightmapGenCore)
+
+target_include_directories(HeightmapGenCore PUBLIC ${CMAKE_SOURCE_DIR}/library/api)
+target_include_directories(HeightmapGen PRIVATE ${CMAKE_SOURCE_DIR}/library/core)
+target_include_directories(SpringHeightmapGen PRIVATE ${CMAKE_SOURCE_DIR}/library/core)
 
 add_executable(Tests
     ${TEST_SOURCES}
@@ -57,7 +63,7 @@ if (NOT DEFINED ENV{CI})
 	FetchContent_MakeAvailable(winx glad)
 
 	target_link_libraries(view PRIVATE
-			HeightmapGen
+			SpringHeightmapGen
 			winx
 			glad
 	)

@@ -3,11 +3,15 @@ package net.darktree.heightmapclient.config;
 import com.mojang.serialization.Codec;
 import net.darktree.heightmapclient.GeneratorType;
 import net.darktree.heightmapclient.HgMod;
+import net.darktree.heightmapclient.api.binding.HeightmapGen;
+import net.darktree.heightmapclient.api.binding.HeightmapGenAccess;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.OptionInstance;
+import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.options.OptionsSubScreen;
+import net.minecraft.network.chat.CommonComponents;
 import net.minecraft.network.chat.Component;
 
 import java.util.List;
@@ -17,6 +21,7 @@ import java.util.function.Supplier;
 
 public class HgOptionsScreen extends OptionsSubScreen {
 
+	private static final Component RELOAD = Component.translatable("config.heightmapgen.reload");
 	private static final Component COMMON_HEADER = Component.translatable("config.heightmapgen.header.common").withStyle(ChatFormatting.UNDERLINE, ChatFormatting.BOLD);
 	private static final Component HYDRAULIC_HEADER = Component.translatable("config.heightmapgen.header.hydraulic").withStyle(ChatFormatting.UNDERLINE, ChatFormatting.BOLD);
 	private static final Component MINECRAFT_HEADER = Component.translatable("config.heightmapgen.header.minecraft").withStyle(ChatFormatting.UNDERLINE, ChatFormatting.BOLD);
@@ -69,6 +74,19 @@ public class HgOptionsScreen extends OptionsSubScreen {
 				fallback,
 				setter::accept
 		);
+	}
+
+	@Override
+	protected void addFooter() {
+		HeightmapGen library = HeightmapGenAccess.getInstance();
+
+		if (HeightmapGenAccess.isReloadable(library)) {
+			this.addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, button -> this.onClose()).bounds(this.width / 2 + 4, this.height - 27, 150, 20).build());
+			this.addRenderableWidget(Button.builder(RELOAD, button -> HeightmapGenAccess.tryReload(library)).bounds(this.width / 2 - 154, this.height - 27, 150, 20).build());
+			return;
+		}
+
+		super.addFooter();
 	}
 
 	@Override

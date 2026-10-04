@@ -74,6 +74,8 @@ public class HgMod implements ModInitializer {
 			commands.performPrefixedCommand(source, "/execute as @s in heightmapgen:test run tp @s 0 30 0");
 			commands.performPrefixedCommand(source, "/gamemode spectator");
 		});
+
+		LOGGER.info("HeightmapGen init complete.");
 	}
 
 	private static HgGenerator createGenerator() {

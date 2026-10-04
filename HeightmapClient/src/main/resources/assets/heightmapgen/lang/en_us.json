@@ -1,5 +1,7 @@
 {
     "config.heightmapgen.title": "HeightmapGen Client Settings",
+    "config.heightmapgen.reload": "Reload Native Library",
+
     "config.heightmapgen.header.common": "Common Generator Settings",
     "config.heightmapgen.header.hydraulic": "Hydraulic Generator Settings",
     "config.heightmapgen.header.minecraft": "General Minecraft Settings",

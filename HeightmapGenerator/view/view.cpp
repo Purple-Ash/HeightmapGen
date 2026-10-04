@@ -2,6 +2,7 @@
 #include <vector>
 #include <cstdint>
 #include <chrono>
+#include <SpringHeightmapGenAPI.h>
 
 #include <winx.h>
 #include <glad/glad.h>
@@ -84,15 +85,22 @@ void window_close_handler() {
 }
 
 void window_keyboard_handler(int state, int keycode) {
-	if (keycode == WXK_ENTER && state == WINX_RELEASED) {
+	if (keycode == WXK_RIGHT && state == WINX_RELEASED) {
 		index = (index + 1) % samplers.size();
 	}
+
+	if (keycode == WXK_LEFT && state == WINX_RELEASED) {
+		index = (index - 1) % samplers.size();
+	}
+
+	reloadManagedImplementation();
 }
 
 int main(int argc, char *argv[]) {
 	const int w = 800;
 	const int h = 800;
 
+	srand(time(NULL));
 	void* pixels = malloc(3 * w * h);
 
 	winxOpen(w, h, "Noise Viewer");
