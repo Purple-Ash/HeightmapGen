@@ -5,29 +5,27 @@ using System.Reflection;
 using UnityEngine;
 using UnityEngine.UI;
 
-/// <summary>
-/// Builds the runtime terrain settings panel from the serializable fields on TerrainGen.
-/// The panel is installed automatically after a scene loads, so no prefab or scene setup is needed.
-/// </summary>
+// This script dynamically generats settings UI using C# reflection system
+
 [DefaultExecutionOrder(-100)]
 public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
 {
-    private const float PanelWidth = 390f;
-    private const float PanelMargin = 16f;
-    private const float PanelPadding = 12f;
-    private const float HeaderHeight = 25f;
-    private const float HintHeight = 18f;
-    private const float ApplyHeight = 36f;
-    private const float RowHeight = 34f;
-    private const float SectionHeight = 24f;
-    private const float RowSpacing = 6f;
+    [SerializeField] private float PanelWidth;
+    [SerializeField] private float PanelMargin;
+    [SerializeField] private float PanelPadding;
+    [SerializeField] private float HeaderHeight;
+    [SerializeField] private float HintHeight;
+    [SerializeField] private float ApplyHeight; 
+    [SerializeField] private float RowHeight;
+    [SerializeField] private float SectionHeight;
+    [SerializeField] private float RowSpacing;
 
-    private static readonly Color PanelColor = new Color(0.055f, 0.075f, 0.105f, 0.94f);
-    private static readonly Color BackgroundColor = new Color(0.02f, 0.03f, 0.045f, 0.68f);
-    private static readonly Color FieldColor = new Color(0.12f, 0.16f, 0.22f, 1f);
-    private static readonly Color AccentColor = new Color(0.18f, 0.48f, 0.78f, 1f);
-    private static readonly Color TextColor = new Color(0.92f, 0.95f, 1f, 1f);
-    private static readonly Color MutedTextColor = new Color(0.67f, 0.72f, 0.8f, 1f);
+    [SerializeField] private Color PanelColor = new Color();
+    [SerializeField] private Color BackgroundColor = new Color();
+    [SerializeField] private Color FieldColor = new Color();
+    [SerializeField] private Color AccentColor = new Color();
+    [SerializeField] private Color TextColor = new Color();
+    [SerializeField] private Color MutedTextColor = new Color();
 
     private readonly List<Action> pendingInputCommits = new List<Action>();
 
@@ -48,18 +46,6 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
     private int screenWidth;
     private int screenHeight;
     private bool wasGenerating;
-
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-    private static void CreateForLoadedScene()
-    {
-        if (FindFirstObjectByType<TerrainRuntimeSettingsUI>() != null ||
-            FindFirstObjectByType<TerrainGen>() == null)
-        {
-            return;
-        }
-
-        new GameObject("Terrain Runtime Settings").AddComponent<TerrainRuntimeSettingsUI>();
-    }
 
     private void Awake()
     {
