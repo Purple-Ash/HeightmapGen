@@ -105,8 +105,6 @@ BrownianPerlinGeneratorImpl::BrownianPerlinGeneratorImpl(ContextImpl* ctx, const
     	amplitude += currentAmplitude;
         currentAmplitude *= persistence;
     }
-
-	amplitude *= settings.amplitude;
 }
 
 float BrownianPerlinGeneratorImpl::getHeight(Vec2Int pos) {
