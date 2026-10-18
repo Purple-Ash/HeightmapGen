@@ -63,6 +63,8 @@ void ContextImpl::removeGenerator(Generator generator) {
 		retained = std::move(it->second);
 		generators.erase(it);
 	}
+
+	retained->fastDrain();
 	retained->waitForAll();
 }
 
