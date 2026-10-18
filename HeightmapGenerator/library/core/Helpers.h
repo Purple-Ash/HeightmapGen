@@ -6,8 +6,7 @@
 
 inline float randomFloatBetween(float min, float max)
 {
-	static std::random_device rd;
-	static std::mt19937 gen(rd());
+	thread_local std::mt19937 gen(std::random_device{}());
 
 	std::uniform_real_distribution<float> dis(min, max);
 	return dis(gen);
