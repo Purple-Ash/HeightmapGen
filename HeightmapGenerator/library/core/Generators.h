@@ -16,6 +16,7 @@ private:
 	std::condition_variable jobsFinished;
 	std::unordered_map<Vec2Int, std::shared_ptr<ChunkData>> cache;
 	int32_t jobsInProgress = 0;
+	bool drain = false;
 
 	std::shared_ptr<ChunkData> requestChunkImpl(Vec2Int pos, bool forceSingleThreaded);
 	void runChunkJob(Vec2Int pos, std::shared_ptr<ChunkData> chunk);
@@ -50,6 +51,7 @@ public:
 	Vec2Int pointToChunk(Vec2Int point) const;
 
 	void waitForAll();
+	void fastDrain();
 };
 
 class CoordinateGeneratorImpl : public GeneratorImpl {
