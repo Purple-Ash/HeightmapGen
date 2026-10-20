@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using Stopwatch = System.Diagnostics.Stopwatch;
 
 public class TerrainGen : MonoBehaviour
 {
@@ -43,7 +44,23 @@ public class TerrainGen : MonoBehaviour
     public event Action BeforeRegenerateChunks;
     public bool HasHeightStatistics { get; private set; }
     public float HighestHeight { get; private set; }
+    public double MaximumSlope { get; private set; }
+    public double AverageHeight { get; private set; }
+    public double AverageSlope { get; private set; }
     public float LowestHeight { get; private set; }
+    public bool HasSlopeStatistics => triangleCount > 0;
+    public double ElapsedGenerationSeconds => generationTimer.Elapsed.TotalSeconds;
+    public int CompletedChunkCount { get; private set; }
+    public double AverageChunkGenerationSeconds => CompletedChunkCount > 0
+        ? totalChunkGenerationSeconds / CompletedChunkCount : 0.0;
+
+    private readonly Stopwatch generationTimer = new Stopwatch();
+    private double totalChunkGenerationSeconds;
+    private double sampleHeightSum;
+    private long sampleCount;
+    private double triangleHeightSum;
+    private long triangleCount;
+    private double slopeSum;
 
     private IntPtr context = IntPtr.Zero;
     private IntPtr generator = IntPtr.Zero;
@@ -69,7 +86,6 @@ public class TerrainGen : MonoBehaviour
 
     public void Regenerate()
     {
-        // Every entry point (including R) commits the UI draft before snapshotting.
         BeforeRegenerateChunks?.Invoke();
 
         if (generationCoroutine != null)
@@ -81,11 +97,20 @@ public class TerrainGen : MonoBehaviour
         ClearChunks();
         HasHeightStatistics = false;
         HighestHeight = 0f;
+        AverageHeight = 0.0;
         LowestHeight = 0f;
+        MaximumSlope = 0.0;
+        AverageSlope = 0.0;
+        sampleHeightSum = 0.0;
+        sampleCount = 0;
+        slopeSum = 0.0;
+        triangleHeightSum = 0.0;
+        triangleCount = 0;
+        CompletedChunkCount = 0;
+        totalChunkGenerationSeconds = 0.0;
+        generationTimer.Reset();
         IsGenerating = true;
 
-        // Generate drains any outstanding native call without blocking Unity.
-        // Repeated restarts replace the pending request with the latest settings.
         generationCoroutine = StartCoroutine(Generate());
     }
 
@@ -125,8 +150,6 @@ public class TerrainGen : MonoBehaviour
 
     private IEnumerator Generate()
     {
-        // Capture all settings before yielding. Native buffer sizes, chunk layout,
-        // and mesh creation must agree even if serialized fields change later.
         Vector2Int generationChunkCount = chunkCount;
         float generationScale = scale;
         GameObject generationChunkObject = chunkObject;
@@ -158,11 +181,8 @@ public class TerrainGen : MonoBehaviour
 
         try
         {
-            // Ensure the coroutine handle is assigned even if initialization fails.
             yield return null;
 
-            // The DLL cannot cancel getChunk. Keep its handles alive until it
-            // returns, discard that result, and never schedule another old chunk.
             while (activeChunkTask != null && !activeChunkTask.IsCompleted)
             {
                 yield return null;
@@ -174,6 +194,7 @@ public class TerrainGen : MonoBehaviour
             activeChunkTask = null;
             DestroyGenerators();
 
+            generationTimer.Start();
             context = HeightmapGenAPI.createContext();
             if (context == IntPtr.Zero)
             {
@@ -212,14 +233,11 @@ public class TerrainGen : MonoBehaviour
                 yield break;
             }
 
-            float highest = float.NegativeInfinity;
-            float lowest = float.PositiveInfinity;
-            bool hasSamples = false;
-
             for (int i = 0; i < generationChunkCount.x; i++)
             {
                 for (int j = 0; j < generationChunkCount.y; j++)
                 {
+                    Stopwatch chunkTimer = Stopwatch.StartNew();
                     int chunkX = i - generationChunkCount.x / 2;
                     int chunkY = j - generationChunkCount.y / 2;
                     int totalSamples = checked(commonSettings.resolution * commonSettings.resolution);
@@ -244,17 +262,6 @@ public class TerrainGen : MonoBehaviour
                     {
                         Debug.LogException(taskException);
                         continue;
-                    }
-
-                    for (int k = 0; k < heightData.Length; k++)
-                    {
-                        float h = heightData[k];
-                        if (h > highest) highest = h;
-                        if (h < lowest) lowest = h;
-                    }
-                    if (totalSamples > 0)
-                    {
-                        hasSamples = true;
                     }
 
                     Vector3 worldOffset = new Vector3(
@@ -282,12 +289,11 @@ public class TerrainGen : MonoBehaviour
                         );
                     }
 
-                    if (hasSamples)
-                    {
-                        UpdateHeightStatistics(highest, lowest);
-                    }
+                    CollectTerrainStatistics(heightData, commonSettings.resolution, generationScale);
+                    chunkTimer.Stop();
+                    totalChunkGenerationSeconds += chunkTimer.Elapsed.TotalSeconds;
+                    CompletedChunkCount++;
 
-                    // Let this chunk actually render before starting the next one.
                     yield return null;
                 }
             }
@@ -295,8 +301,7 @@ public class TerrainGen : MonoBehaviour
         }
         finally
         {
-            // StopCoroutine may run this while the native worker is still using
-            // the handles. In that case the next run (or OnDestroy) owns cleanup.
+            generationTimer.Stop();
             if (activeChunkTask == null || activeChunkTask.IsCompleted)
             {
                 DestroyGenerators();
@@ -306,11 +311,46 @@ public class TerrainGen : MonoBehaviour
         }
     }
 
-    private void UpdateHeightStatistics(float highest, float lowest)
+    private void CollectTerrainStatistics(float[] heights, int size, float spacing)
     {
-        HighestHeight = highest;
-        LowestHeight = lowest;
-        HasHeightStatistics = true;
+        foreach (float height in heights)
+        {
+            if (!HasHeightStatistics || height > HighestHeight) HighestHeight = height;
+            if (!HasHeightStatistics || height < LowestHeight) LowestHeight = height;
+            sampleHeightSum += height;
+            sampleCount++;
+            HasHeightStatistics = true;
+        }
+
+        if (spacing != 0f)
+        {
+            for (int x = 0; x < size - 1; x++)
+            {
+                for (int y = 0; y < size - 1; y++)
+                {
+                    int index = x * size + y;
+                    double h00 = heights[index];
+                    double h01 = heights[index + 1];
+                    double h10 = heights[index + size];
+                    double h11 = heights[index + size + 1];
+                    AddTrianglesStatistics(h00, h01, h10, (h10 - h00) / spacing, (h01 - h00) / spacing);
+                    AddTrianglesStatistics(h10, h01, h11, (h11 - h01) / spacing, (h11 - h10) / spacing);
+                }
+            }
+        }
+
+        AverageHeight = triangleCount > 0 ? triangleHeightSum / triangleCount
+            : sampleCount > 0 ? sampleHeightSum / sampleCount : 0.0;
+        AverageSlope = triangleCount > 0 ? slopeSum / triangleCount : 0.0;
+    }
+
+    private void AddTrianglesStatistics(double a, double b, double c, double gradientX, double gradientY)
+    {
+        double slope = Math.Atan(Math.Sqrt(gradientX * gradientX + gradientY * gradientY)) * (180.0 / Math.PI);
+        triangleHeightSum += (a + b + c) / 3.0;
+        slopeSum += slope;
+        triangleCount++;
+        if (slope > MaximumSlope) MaximumSlope = slope;
     }
 
     private void OnDestroy()
@@ -323,7 +363,6 @@ public class TerrainGen : MonoBehaviour
 
         try
         {
-            // Teardown must not unload the plugin while a native call is running.
             activeChunkTask?.GetAwaiter().GetResult();
         }
         catch (Exception exception)
@@ -333,6 +372,7 @@ public class TerrainGen : MonoBehaviour
         finally
         {
             activeChunkTask = null;
+            generationTimer.Stop();
             IsGenerating = false;
             ClearChunks();
             DestroyGenerators();
