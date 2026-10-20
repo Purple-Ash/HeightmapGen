@@ -40,6 +40,7 @@ public class TerrainGen : MonoBehaviour
     [Min(0.0f)][SerializeField] private float initialWaterVolume = 1.0f;
 
     public static bool IsGenerating { get; private set; }
+    public event Action BeforeRegenerate;
     public bool HasHeightStatistics { get; private set; }
     public float HighestHeight { get; private set; }
     public float LowestHeight { get; private set; }
@@ -68,6 +69,9 @@ public class TerrainGen : MonoBehaviour
 
     public void Regenerate()
     {
+        // Every entry point (including R) commits the UI draft before snapshotting.
+        BeforeRegenerate?.Invoke();
+
         if (generationCoroutine != null)
         {
             StopCoroutine(generationCoroutine);
