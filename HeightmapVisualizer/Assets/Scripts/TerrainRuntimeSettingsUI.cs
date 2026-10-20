@@ -26,7 +26,6 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
     [SerializeField] private Color MutedTextColor = new Color(0.67f, 0.72f, 0.8f, 1f);
 
     private readonly List<Action> pendingInputCommits = new List<Action>();
-    // Controls edit a draft; the running generator only changes when Apply is pressed.
     private readonly Dictionary<FieldInfo, object> draftSettings = new Dictionary<FieldInfo, object>();
 
     private TerrainGen terrain;
@@ -510,7 +509,7 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
         statisticsPanel.anchorMax = new Vector2(0f, 1f);
         statisticsPanel.pivot = new Vector2(0f, 1f);
         statisticsPanel.anchoredPosition = new Vector2(PanelMargin, -PanelMargin);
-        statisticsPanel.sizeDelta = new Vector2(300f, 118f);
+        statisticsPanel.sizeDelta = new Vector2(330f, 0f);
 
         Image background = statisticsPanel.gameObject.AddComponent<Image>();
         background.color = PanelColor;
@@ -520,7 +519,11 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
         layout.childControlWidth = true;
         layout.childControlHeight = true;
         layout.childForceExpandWidth = true;
-        layout.childForceExpandHeight = true;
+        layout.childForceExpandHeight = false;
+
+        ContentSizeFitter statisticsSize = statisticsPanel.gameObject.AddComponent<ContentSizeFitter>();
+        statisticsSize.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+        statisticsSize.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
         RectTransform heading = CreateObject("Heading", statisticsPanel).GetComponent<RectTransform>();
         HorizontalLayoutGroup headingLayout = heading.gameObject.AddComponent<HorizontalLayoutGroup>();
@@ -540,9 +543,7 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
 
         statisticsText = CreateText("Values", statisticsPanel, string.Empty, 14, TextColor, TextAnchor.UpperLeft);
         statisticsText.verticalOverflow = VerticalWrapMode.Overflow;
-        SetPreferredHeight(statisticsText.rectTransform, 60f);
-        UpdateStatisticsText();
-        HideStatistics();
+        ShowStatistics();
     }
 
     private void ShowStatistics()
@@ -560,14 +561,22 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
 
     private void UpdateStatisticsText()
     {
-        if (!terrain.HasHeightStatistics)
-        {
-            statisticsText.text = "Highest point:\nLowest point:";
-            return;
-        }
+        string heights = terrain.HasHeightStatistics
+            ? "Highest point: " + terrain.HighestHeight.ToString("F2", CultureInfo.InvariantCulture) +
+              "\nLowest point: " + terrain.LowestHeight.ToString("F2", CultureInfo.InvariantCulture) +
+              "\nAverage height: " + terrain.AverageHeight.ToString("F2", CultureInfo.InvariantCulture)
+            : "Highest point: —\nLowest point: —\nAverage height: —";
+        string slopes = terrain.HasSlopeStatistics
+            ? "\nAverage slope: " + terrain.AverageSlope.ToString("F2", CultureInfo.InvariantCulture) + "°" +
+              "\nMaximum slope: " + terrain.MaximumSlope.ToString("F2", CultureInfo.InvariantCulture) + "°"
+            : "\nAverage slope: —\nMaximum slope: —";
+        string averageChunkTime = terrain.CompletedChunkCount > 0
+            ? terrain.AverageChunkGenerationSeconds.ToString("F3", CultureInfo.InvariantCulture) + " s"
+            : "—";
 
-        statisticsText.text = "Highest point: " + terrain.HighestHeight.ToString("F2", CultureInfo.InvariantCulture) +
-                              "\nLowest point: " + terrain.LowestHeight.ToString("F2", CultureInfo.InvariantCulture);
+        statisticsText.text = heights + slopes +
+                              "\nElapsed generation: " + terrain.ElapsedGenerationSeconds.ToString("F2", CultureInfo.InvariantCulture) + " s" +
+                              "\nAverage time / chunk: " + averageChunkTime;
     }
 
     private GameObject CreateClickBlocker(string name, UnityEngine.Events.UnityAction onClick)
@@ -746,7 +755,6 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
     private static Sprite LoadStatisticsIcon()
     {
 #if UNITY_EDITOR
-        // Works in the editor / play mode straight from Assets/Sprites/Statistics.png.
         const string assetPath = "Assets/Sprites/Statistics.png";
         Sprite editorSprite = UnityEditor.AssetDatabase.LoadAssetAtPath<Sprite>(assetPath);
         if (editorSprite != null)
@@ -754,7 +762,6 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
             return editorSprite;
         }
 
-        // Texture not imported as "Sprite (2D and UI)" - wrap it in a sprite instead.
         Texture2D editorTexture = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(assetPath);
         if (editorTexture != null)
         {
@@ -764,7 +771,6 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
                 new Vector2(0.5f, 0.5f));
         }
 #endif
-        // Player builds can't read from Assets/ directly; this needs Assets/Resources/Sprites/Statistics.png.
         return Resources.Load<Sprite>("Sprites/Statistics");
     }
 
