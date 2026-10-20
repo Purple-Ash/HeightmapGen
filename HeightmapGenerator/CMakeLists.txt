@@ -34,7 +34,7 @@ add_executable(Tests
     ${TEST_SOURCES}
 )
 
-if (NOT DEFINED ENV{CI})
+if (HEIGHTMAP_BUILD_VIEWER)
 	add_executable(view
 			view/view.cpp
 	)
