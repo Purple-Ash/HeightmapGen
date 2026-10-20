@@ -10,8 +10,6 @@ HG_API const char* smokeTest(const char* data) {
 HG_API Context createContext(int32_t workerCount) {
 	if (workerCount < 0) {
 		workerCount = std::max(1u, std::thread::hardware_concurrency()); 
-	} else if (workerCount == 0) {
-		workerCount = 0;
 	}
 	return new ContextImpl(workerCount);
 }
