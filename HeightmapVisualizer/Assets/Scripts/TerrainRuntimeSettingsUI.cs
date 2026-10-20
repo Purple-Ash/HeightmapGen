@@ -61,6 +61,15 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
         font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         BuildPanel();
         RefreshPanelSize();
+        terrain.BeforeRegenerateChunks += ApplySettings;
+    }
+
+    private void OnDestroy()
+    {
+        if (terrain != null)
+        {
+            terrain.BeforeRegenerateChunks -= ApplySettings;
+        }
     }
 
     private void Update()
@@ -138,7 +147,7 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
         BuildScrollView(mainPanel);
         BuildFieldControls();
 
-        applyButton = CreateButton("Apply", mainPanel, "Apply & Regenerate", AccentColor, ApplyChanges);
+        applyButton = CreateButton("Apply", mainPanel, "Apply & Regenerate", AccentColor, terrain.Regenerate);
         SetPreferredHeight(applyButton.GetComponent<RectTransform>(), ApplyHeight);
         applyButtonText = applyButton.GetComponentInChildren<Text>();
         wasGenerating = TerrainGen.IsGenerating;
@@ -535,7 +544,7 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
         statisticsText.verticalOverflow = VerticalWrapMode.Overflow;
         SetPreferredHeight(statisticsText.rectTransform, 60f);
         UpdateStatisticsText();
-        statisticsToggle.gameObject.SetActive(false);
+        HideStatistics();
     }
 
     private void ShowStatistics()
@@ -614,7 +623,7 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
         popup.anchoredPosition = new Vector2(x, openAbove ? upperLeft.y : lowerLeft.y);
     }
 
-    private void ApplyChanges()
+    private void ApplySettings()
     {
         foreach (Action commit in pendingInputCommits)
         {
@@ -627,7 +636,6 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
         }
 
         CloseEnumDropdown();
-        terrain.Regenerate();
     }
 
     private void RefreshPanelSize()
