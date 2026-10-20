@@ -26,6 +26,8 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
     [SerializeField] private Color MutedTextColor = new Color(0.67f, 0.72f, 0.8f, 1f);
 
     private readonly List<Action> pendingInputCommits = new List<Action>();
+    // Controls edit a draft; the running generator only changes when Apply is pressed.
+    private readonly Dictionary<FieldInfo, object> draftSettings = new Dictionary<FieldInfo, object>();
 
     private TerrainGen terrain;
     private Font font;
@@ -70,8 +72,7 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
         if (isGenerating != wasGenerating)
         {
             wasGenerating = isGenerating;
-            applyButton.interactable = !isGenerating;
-            applyButtonText.text = isGenerating ? "Generating..." : "Apply & Regenerate";
+            applyButtonText.text = isGenerating ? "Apply & Restart Generation" : "Apply & Regenerate";
         }
 
         if (statisticsText != null)
@@ -139,10 +140,9 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
         SetPreferredHeight(applyButton.GetComponent<RectTransform>(), ApplyHeight);
         applyButtonText = applyButton.GetComponentInChildren<Text>();
         wasGenerating = TerrainGen.IsGenerating;
-        applyButton.interactable = !wasGenerating;
         if (wasGenerating)
         {
-            applyButtonText.text = "Generating...";
+            applyButtonText.text = "Apply & Restart Generation";
         }
 
         BuildStatisticsOverlay();
@@ -251,6 +251,7 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
                 SetPreferredHeight(section.rectTransform, SectionHeight);
             }
 
+            draftSettings[field] = field.GetValue(terrain);
             AddControlForField(field);
         }
     }
@@ -319,15 +320,15 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
     private void AddBooleanControl(FieldInfo field)
     {
         RectTransform row = CreateRow(field);
-        bool initialValue = (bool)field.GetValue(terrain);
+        bool initialValue = (bool)draftSettings[field];
         Button button = CreateButton("Value", row, initialValue ? "On" : "Off", FieldColor, null);
         SetFlexibleWidth(button.GetComponent<RectTransform>(), 1f);
         Text valueText = button.GetComponentInChildren<Text>();
 
         button.onClick.AddListener(() =>
         {
-            bool value = !(bool)field.GetValue(terrain);
-            field.SetValue(terrain, value);
+            bool value = !(bool)draftSettings[field];
+            draftSettings[field] = value;
             valueText.text = value ? "On" : "Off";
         });
     }
@@ -335,7 +336,7 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
     private void AddEnumControl(FieldInfo field)
     {
         RectTransform row = CreateRow(field);
-        Button button = CreateButton("Value", row, field.GetValue(terrain).ToString(), FieldColor, null);
+        Button button = CreateButton("Value", row, draftSettings[field].ToString(), FieldColor, null);
         SetFlexibleWidth(button.GetComponent<RectTransform>(), 1f);
         Text valueText = button.GetComponentInChildren<Text>();
 
@@ -345,7 +346,7 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
     private void AddTextControl(FieldInfo field)
     {
         RectTransform row = CreateRow(field);
-        InputField input = CreateInputField(row, FormatValue(field.GetValue(terrain)), "Value");
+        InputField input = CreateInputField(row, FormatValue(draftSettings[field]), "Value");
         SetFlexibleWidth(input.GetComponent<RectTransform>(), 1f);
 
         Action commit = () =>
@@ -353,12 +354,12 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
             if (TryParseValue(input.text, field.FieldType, out object parsedValue))
             {
                 object constrainedValue = ApplyNumericConstraints(field, parsedValue);
-                field.SetValue(terrain, constrainedValue);
+                draftSettings[field] = constrainedValue;
                 input.text = FormatValue(constrainedValue);
             }
             else
             {
-                input.text = FormatValue(field.GetValue(terrain));
+                input.text = FormatValue(draftSettings[field]);
             }
         };
 
@@ -378,7 +379,7 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
         valuesLayout.childForceExpandHeight = true;
         SetFlexibleWidth(valuesObject.GetComponent<RectTransform>(), 1f);
 
-        float[] initialValues = GetVectorValues(field.GetValue(terrain));
+        float[] initialValues = GetVectorValues(draftSettings[field]);
         InputField[] inputs = new InputField[labels.Length];
         for (int i = 0; i < labels.Length; i++)
         {
@@ -393,7 +394,7 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
             {
                 if (!TryParseFloat(inputs[i].text, out values[i]))
                 {
-                    values = GetVectorValues(field.GetValue(terrain));
+                    values = GetVectorValues(draftSettings[field]);
                     for (int j = 0; j < inputs.Length; j++)
                     {
                         inputs[j].text = integerValues
@@ -405,7 +406,7 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
             }
 
             object vectorValue = CreateVectorValue(field.FieldType, values, integerValues);
-            field.SetValue(terrain, vectorValue);
+            draftSettings[field] = vectorValue;
         };
 
         foreach (InputField input in inputs)
@@ -461,7 +462,7 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
             object selectedValue = value;
             Button option = CreateButton("Option", enumDropdown.transform, selectedValue.ToString(), FieldColor, () =>
             {
-                field.SetValue(terrain, selectedValue);
+                draftSettings[field] = selectedValue;
                 caption.text = selectedValue.ToString();
                 CloseEnumDropdown();
             });
@@ -618,6 +619,12 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
             commit();
         }
 
+        foreach (KeyValuePair<FieldInfo, object> setting in draftSettings)
+        {
+            setting.Key.SetValue(terrain, setting.Value);
+        }
+
+        CloseEnumDropdown();
         terrain.Regenerate();
     }
 

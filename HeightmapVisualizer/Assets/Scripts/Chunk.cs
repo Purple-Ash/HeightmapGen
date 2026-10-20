@@ -10,6 +10,7 @@ public class Chunk : MonoBehaviour
     }
 
     [SerializeField] private ColoringMode coloringMode = ColoringMode.Height;
+    private Mesh generatedMesh;
 
     Color colorByHeight(Vector3 vertex)
     {
@@ -27,7 +28,12 @@ public class Chunk : MonoBehaviour
 
     public void generateMesh(float[] newMesh, int sizeX, int sizeY, float scale, float amplitude)
     {
+        if (generatedMesh != null)
+        {
+            Destroy(generatedMesh);
+        }
         Mesh mesh = new Mesh();
+        generatedMesh = mesh;
         mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
 
         int gridX = sizeX;
@@ -91,6 +97,14 @@ public class Chunk : MonoBehaviour
         if (TryGetComponent<MeshCollider>(out var collider))
         {
             collider.sharedMesh = mesh;
+        }
+    }
+
+    private void OnDestroy()
+    {
+        if (generatedMesh != null)
+        {
+            Destroy(generatedMesh);
         }
     }
 }

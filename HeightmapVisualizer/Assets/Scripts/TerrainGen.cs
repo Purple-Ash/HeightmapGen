@@ -54,7 +54,7 @@ public class TerrainGen : MonoBehaviour
 
     void Start()
     {
-        generationCoroutine = StartCoroutine(Generate());
+        Regenerate();
     }
 
     void Update()
@@ -74,13 +74,14 @@ public class TerrainGen : MonoBehaviour
             generationCoroutine = null;
         }
 
-        activeChunkTask?.Wait();
-        activeChunkTask = null;
-        IsGenerating = false;
-
         ClearChunks();
-        DestroyGenerators();
+        HasHeightStatistics = false;
+        HighestHeight = 0f;
+        LowestHeight = 0f;
+        IsGenerating = true;
 
+        // Generate drains any outstanding native call without blocking Unity.
+        // Repeated restarts replace the pending request with the latest settings.
         generationCoroutine = StartCoroutine(Generate());
     }
 
@@ -90,6 +91,7 @@ public class TerrainGen : MonoBehaviour
         {
             if (chunkGO != null)
             {
+                chunkGO.SetActive(false);
                 Destroy(chunkGO);
             }
         }
@@ -119,20 +121,12 @@ public class TerrainGen : MonoBehaviour
 
     private IEnumerator Generate()
     {
-        IsGenerating = true;
-        HasHeightStatistics = false;
-        HighestHeight = 0f;
-        LowestHeight = 0f;
-
-        context = HeightmapGenAPI.createContext();
-        if (context == IntPtr.Zero)
-        {
-            Debug.LogError("Failed to create HeightmapGen context.");
-            generationCoroutine = null;
-            IsGenerating = false;
-            yield break;
-        }
-
+        // Capture all settings before yielding. Native buffer sizes, chunk layout,
+        // and mesh creation must agree even if serialized fields change later.
+        Vector2Int generationChunkCount = chunkCount;
+        float generationScale = scale;
+        GameObject generationChunkObject = chunkObject;
+        GeneratorType generationType = generatorType;
         HeightmapGenAPI.CommonSettings commonSettings = new HeightmapGenAPI.CommonSettings
         {
             seed = seed,
@@ -142,138 +136,171 @@ public class TerrainGen : MonoBehaviour
             cacheable = cacheable
         };
 
-        switch (generatorType)
+        HeightmapGenAPI.HydraulicErosionSettings erosionSettings = new HeightmapGenAPI.HydraulicErosionSettings
         {
-            case GeneratorType.Perlin:
-                generator = HeightmapGenAPI.createPerlinGenerator(context, commonSettings);
-                break;
+            seed = erosionSeed,
+            numIterations = erosionIterations,
+            erosionRadius = erosionRadius,
+            maxDropletLifetime = maxDropletLifetime,
+            inertia = inertia,
+            sedimentCapacityFactor = sedimentCapacityFactor,
+            minSedimentCapacity = minSedimentCapacity,
+            erodeSpeed = erodeSpeed,
+            depositSpeed = depositSpeed,
+            evaporateSpeed = evaporateSpeed,
+            gravity = gravity,
+            initialSpeed = initialSpeed,
+            initialWaterVolume = initialWaterVolume
+        };
 
-            case GeneratorType.BrownianNoise:
-                generator = HeightmapGenAPI.createBrownianPerlinGenerator(context, commonSettings);
-                break;
-
-            case GeneratorType.HydraulicErosion:
-                HeightmapGenAPI.CommonSettings baseSettings = commonSettings;
-                baseSettings.amplitude = 1.0f;
-                baseGenerator = HeightmapGenAPI.createBrownianPerlinGenerator(context, baseSettings);
-                if (baseGenerator == IntPtr.Zero)
-                {
-                    Debug.LogError("Failed to create base generator for hydraulic erosion");
-                    generationCoroutine = null;
-                    IsGenerating = false;
-                    yield break;
-                }
-
-                HeightmapGenAPI.HydraulicErosionSettings erosionSettings = new HeightmapGenAPI.HydraulicErosionSettings
-                {
-                    seed = erosionSeed,
-                    numIterations = erosionIterations,
-                    erosionRadius = erosionRadius,
-                    maxDropletLifetime = maxDropletLifetime,
-                    inertia = inertia,
-                    sedimentCapacityFactor = sedimentCapacityFactor,
-                    minSedimentCapacity = minSedimentCapacity,
-                    erodeSpeed = erodeSpeed,
-                    depositSpeed = depositSpeed,
-                    evaporateSpeed = evaporateSpeed,
-                    gravity = gravity,
-                    initialSpeed = initialSpeed,
-                    initialWaterVolume = initialWaterVolume,
-                    baseGeneratorImpl = baseGenerator
-                };
-                generator = HeightmapGenAPI.createHydraulicErosionGenerator(context, commonSettings, erosionSettings);
-                break;
-        }
-
-        if (generator == IntPtr.Zero)
+        try
         {
-            Debug.LogError("Failed to create Generator instance");
-            generationCoroutine = null;
-            IsGenerating = false;
-            yield break;
-        }
+            // Ensure the coroutine handle is assigned even if initialization fails.
+            yield return null;
 
-        float highest = float.NegativeInfinity;
-        float lowest = float.PositiveInfinity;
-        bool hasSamples = false;
-
-        for (int i = 0; i < chunkCount.x; i++)
-        {
-            for (int j = 0; j < chunkCount.y; j++)
+            // The DLL cannot cancel getChunk. Keep its handles alive until it
+            // returns, discard that result, and never schedule another old chunk.
+            while (activeChunkTask != null && !activeChunkTask.IsCompleted)
             {
-                int chunkX = i - chunkCount.x / 2;
-                int chunkY = j - chunkCount.y / 2;
-                int totalSamples = resolution * resolution;
-                float[] heightData = new float[totalSamples];
-
-                activeChunkTask = Task.Run(() =>
-                {
-                    HeightmapGenAPI.getChunk(generator, chunkX, chunkY, heightData);
-                });
-
-                while (!activeChunkTask.IsCompleted)
-                {
-                    yield return null;
-                }
-
-                bool faulted = activeChunkTask.IsFaulted;
-                Exception taskException = activeChunkTask.Exception;
-                activeChunkTask = null;
-
-                if (faulted)
-                {
-                    Debug.LogException(taskException);
-                    continue;
-                }
-
-                for (int k = 0; k < heightData.Length; k++)
-                {
-                    float h = heightData[k];
-                    if (h > highest) highest = h;
-                    if (h < lowest) lowest = h;
-                }
-                if (totalSamples > 0)
-                {
-                    hasSamples = true;
-                }
-
-                Vector3 worldOffset = new Vector3(
-                    chunkX * (resolution - 1) * scale,
-                    0,
-                    chunkY * (resolution - 1) * scale
-                );
-
-                GameObject instance = Instantiate(
-                    chunkObject,
-                    worldOffset,
-                    Quaternion.identity,
-                    transform
-                );
-                spawnedChunks.Add(instance);
-
-                if (instance.TryGetComponent<Chunk>(out var chunkComp))
-                {
-                    chunkComp.generateMesh(
-                        heightData,
-                        resolution,
-                        resolution,
-                        scale,
-                        amplitude
-                    );
-                }
-
-                if (hasSamples)
-                {
-                    UpdateHeightStatistics(highest, lowest);
-                }
-
-                // Let this chunk actually render before starting the next one.
                 yield return null;
             }
-        }
+            if (activeChunkTask != null && activeChunkTask.IsFaulted)
+            {
+                Debug.LogException(activeChunkTask.Exception);
+            }
+            activeChunkTask = null;
+            DestroyGenerators();
 
-        generationCoroutine = null;
-        IsGenerating = false;
+            context = HeightmapGenAPI.createContext();
+            if (context == IntPtr.Zero)
+            {
+                Debug.LogError("Failed to create HeightmapGen context.");
+                yield break;
+            }
+
+            switch (generationType)
+            {
+                case GeneratorType.Perlin:
+                    generator = HeightmapGenAPI.createPerlinGenerator(context, commonSettings);
+                    break;
+
+                case GeneratorType.BrownianNoise:
+                    generator = HeightmapGenAPI.createBrownianPerlinGenerator(context, commonSettings);
+                    break;
+
+                case GeneratorType.HydraulicErosion:
+                    HeightmapGenAPI.CommonSettings baseSettings = commonSettings;
+                    baseSettings.amplitude = 1.0f;
+                    baseGenerator = HeightmapGenAPI.createBrownianPerlinGenerator(context, baseSettings);
+                    if (baseGenerator == IntPtr.Zero)
+                    {
+                        Debug.LogError("Failed to create base generator for hydraulic erosion");
+                        yield break;
+                    }
+
+                    erosionSettings.baseGeneratorImpl = baseGenerator;
+                    generator = HeightmapGenAPI.createHydraulicErosionGenerator(context, commonSettings, erosionSettings);
+                    break;
+            }
+
+            if (generator == IntPtr.Zero)
+            {
+                Debug.LogError("Failed to create Generator instance");
+                yield break;
+            }
+
+            float highest = float.NegativeInfinity;
+            float lowest = float.PositiveInfinity;
+            bool hasSamples = false;
+
+            for (int i = 0; i < generationChunkCount.x; i++)
+            {
+                for (int j = 0; j < generationChunkCount.y; j++)
+                {
+                    int chunkX = i - generationChunkCount.x / 2;
+                    int chunkY = j - generationChunkCount.y / 2;
+                    int totalSamples = checked(commonSettings.resolution * commonSettings.resolution);
+                    float[] heightData = new float[totalSamples];
+
+                    IntPtr chunkGenerator = generator;
+                    activeChunkTask = Task.Run(() =>
+                    {
+                        HeightmapGenAPI.getChunk(chunkGenerator, chunkX, chunkY, heightData);
+                    });
+
+                    while (!activeChunkTask.IsCompleted)
+                    {
+                        yield return null;
+                    }
+
+                    bool faulted = activeChunkTask.IsFaulted;
+                    Exception taskException = activeChunkTask.Exception;
+                    activeChunkTask = null;
+
+                    if (faulted)
+                    {
+                        Debug.LogException(taskException);
+                        continue;
+                    }
+
+                    for (int k = 0; k < heightData.Length; k++)
+                    {
+                        float h = heightData[k];
+                        if (h > highest) highest = h;
+                        if (h < lowest) lowest = h;
+                    }
+                    if (totalSamples > 0)
+                    {
+                        hasSamples = true;
+                    }
+
+                    Vector3 worldOffset = new Vector3(
+                        chunkX * (commonSettings.resolution - 1) * generationScale,
+                        0,
+                        chunkY * (commonSettings.resolution - 1) * generationScale
+                    );
+
+                    GameObject instance = Instantiate(
+                        generationChunkObject,
+                        worldOffset,
+                        Quaternion.identity,
+                        transform
+                    );
+                    spawnedChunks.Add(instance);
+
+                    if (instance.TryGetComponent<Chunk>(out var chunkComp))
+                    {
+                        chunkComp.generateMesh(
+                            heightData,
+                            commonSettings.resolution,
+                            commonSettings.resolution,
+                            generationScale,
+                            commonSettings.amplitude
+                        );
+                    }
+
+                    if (hasSamples)
+                    {
+                        UpdateHeightStatistics(highest, lowest);
+                    }
+
+                    // Let this chunk actually render before starting the next one.
+                    yield return null;
+                }
+            }
+
+        }
+        finally
+        {
+            // StopCoroutine may run this while the native worker is still using
+            // the handles. In that case the next run (or OnDestroy) owns cleanup.
+            if (activeChunkTask == null || activeChunkTask.IsCompleted)
+            {
+                DestroyGenerators();
+            }
+            generationCoroutine = null;
+            IsGenerating = false;
+        }
     }
 
     private void UpdateHeightStatistics(float highest, float lowest)
@@ -291,10 +318,21 @@ public class TerrainGen : MonoBehaviour
             generationCoroutine = null;
         }
 
-        activeChunkTask?.Wait();
-        activeChunkTask = null;
-        IsGenerating = false;
-
-        DestroyGenerators();
+        try
+        {
+            // Teardown must not unload the plugin while a native call is running.
+            activeChunkTask?.GetAwaiter().GetResult();
+        }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception);
+        }
+        finally
+        {
+            activeChunkTask = null;
+            IsGenerating = false;
+            ClearChunks();
+            DestroyGenerators();
+        }
     }
 }
