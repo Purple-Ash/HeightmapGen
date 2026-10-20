@@ -59,7 +59,7 @@ float GeneratorImpl::getPoint(Vec2Int pos, bool forceSingleThreaded) {
 
 void GeneratorImpl::runChunkJob(Vec2Int pos, std::shared_ptr<ChunkData> chunk) {
 	std::vector<float> generated(settings.resolution * settings.resolution);
-	if (!drain) {
+	if (!drain.load(std::memory_order_relaxed)) {
 		generateChunkData(pos, generated.data());
 	}
 	{
@@ -180,7 +180,7 @@ float GeneratorImpl::pointFromChunk(Vec2Int pos, const std::vector<float>& data)
 }
 
 void GeneratorImpl::fastDrain() {
-	drain = true;
+	drain.store(true, std::memory_order_relaxed);
 }
 
 float RandomGeneratorImpl::getHeight(Vec2Int) {

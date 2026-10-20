@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <memory>
 #include <mutex>
+#include <atomic>
 
 struct GeneratorImpl : std::enable_shared_from_this<GeneratorImpl> {
 private:
@@ -16,7 +17,7 @@ private:
 	std::condition_variable jobsFinished;
 	std::unordered_map<Vec2Int, std::shared_ptr<ChunkData>> cache;
 	int32_t jobsInProgress = 0;
-	bool drain = false;
+	std::atomic<bool> drain{false};
 
 	std::shared_ptr<ChunkData> requestChunkImpl(Vec2Int pos, bool forceSingleThreaded);
 	void runChunkJob(Vec2Int pos, std::shared_ptr<ChunkData> chunk);
