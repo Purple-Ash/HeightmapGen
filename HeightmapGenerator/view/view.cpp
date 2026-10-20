@@ -40,7 +40,7 @@ void write_image_data(void* data, int w, int h, Sampler& sampler) {
 
 static bool should_run = true;
 static int index = 0;
-static Context ctx = createContext();
+static Context ctx = createContext(-1);
 
 using GeneratorFactory = Generator (*)(Context, CommonSettings);
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using Stopwatch = System.Diagnostics.Stopwatch;
 using System.Threading.Tasks;
 using TMPro;
 using UnityEngine;
@@ -146,7 +147,7 @@ public class TerrainGen : MonoBehaviour
             }
         }
 
-        context = HeightmapGenAPI.createContext();
+        context = HeightmapGenAPI.createContext(3);
         if (context == IntPtr.Zero)
         {
             Debug.LogError("Failed to create HeightmapGen context.");
@@ -222,6 +223,18 @@ public class TerrainGen : MonoBehaviour
             yield break;
         }
 
+        var chunkStopwatches = new Stopwatch[Math.Max(0, chunkCount.x), Math.Max(0, chunkCount.y)];
+        for (int i = 0; i < chunkCount.x; i++)
+        {
+            for (int j = 0; j < chunkCount.y; j++)
+            {
+                int chunkX = i - chunkCount.x / 2;
+                int chunkY = j - chunkCount.y / 2;
+                chunkStopwatches[i, j] = Stopwatch.StartNew();
+                HeightmapGenAPI.requestChunk(generator, chunkX, chunkY);
+            }
+        }
+
         float highest = float.NegativeInfinity;
         float lowest = float.PositiveInfinity;
         bool hasSamples = false;
@@ -234,10 +247,12 @@ public class TerrainGen : MonoBehaviour
                 int chunkY = j - chunkCount.y / 2;
                 int totalSamples = resolution * resolution;
                 float[] heightData = new float[totalSamples];
+                Stopwatch chunkStopwatch = chunkStopwatches[i, j];
 
                 activeChunkTask = Task.Run(() =>
                 {
-                    HeightmapGenAPI.getChunk(generator, chunkX, chunkY, heightData);
+                        HeightmapGenAPI.getChunk(generator, chunkX, chunkY, heightData);
+                        chunkStopwatch.Stop();
                 });
 
                 while (!activeChunkTask.IsCompleted)
@@ -248,6 +263,7 @@ public class TerrainGen : MonoBehaviour
                 bool faulted = activeChunkTask.IsFaulted;
                 Exception taskException = activeChunkTask.Exception;
                 activeChunkTask = null;
+                Debug.Log($"Chunk ({chunkX}, {chunkY}) completed in {chunkStopwatch.Elapsed.TotalSeconds:F2} seconds.", this);
 
                 if (faulted)
                 {

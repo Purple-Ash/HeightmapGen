@@ -57,7 +57,7 @@ public static class HeightmapGenAPI
     public static extern IntPtr smokeTest([MarshalAs(UnmanagedType.LPStr)] string data);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr createContext();
+    public static extern IntPtr createContext(int workerCount);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
     public static extern void destroyContext(IntPtr ctx);
