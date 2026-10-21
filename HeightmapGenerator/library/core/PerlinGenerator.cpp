@@ -1,13 +1,14 @@
 #include "Generators.h"
 #include "Helpers.h"
 
-float lerp(float a, float b, float t)
-{
+#include <array>
+#include <cmath>
+
+float lerp(float a, float b, float t) {
 	return a + t * (b - a);
 }
 
-float grad(int hash, float x, float y)
-{
+float grad(int hash, float x, float y) {
 	int h = hash & 7;
 	float u = h < 4 ? x : y;
 	float v = h < 4 ? y : x;
@@ -15,16 +16,12 @@ float grad(int hash, float x, float y)
 	return ((h & 1) ? -u : u) + ((h & 2) ? -2.0f * v : 2.0f * v);
 }
 
-float fade(float t)
-{
+float fade(float t) {
 	return t * t * t * (t * (t * 6 - 15) + 10);
 }
 
-int p[512];
-
-void initPermutation()
-{
-	int permutation[256] = {
+constexpr auto p = [] {
+	constexpr std::array<int, 256> permutation = {
 		151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,
 		140,36,103,30,69,142,8,99,37,240,21,10,23,190,6,148,
 		247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,
@@ -44,33 +41,31 @@ void initPermutation()
 		215,61,156,180
 	};
 
-	for (int i = 0; i < 256; i++)
-		p[i] = permutation[i];
-
-	for (int i = 256; i < 512; i++)
-		p[i] = p[i - 256];
-}
+	std::array<int, 512> result{};
+	for (size_t i = 0; i < result.size(); i++){
+		result[i] = permutation[i % permutation.size()];
+	}
+	return result;
+}();
 
 PerlinGeneratorImpl::PerlinGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings) : GeneratorImpl(ctx, settings) {
-    initPermutation();
 }
 
-bool PerlinGeneratorImpl::isDeterministic()
-{
+bool PerlinGeneratorImpl::isDeterministic() {
 	return true;
 }
 
 
-float PerlinGeneratorImpl::getHeight(float posX, float posY)
-{
-	float x = posX * settings.scale;
-	float y = posY * settings.scale;
+float PerlinGeneratorImpl::getHeight(Vec2Int pos) {
+	double sampleX = static_cast<double>(pos.x) * settings.scale;
+	double sampleY = static_cast<double>(pos.y) * settings.scale;
+	double cellX = std::floor(sampleX);
+	double cellY = std::floor(sampleY);
+	int X = static_cast<int>(cellX) & 255;
+	int Y = static_cast<int>(cellY) & 255;
 
-	int X = (int)floor(x) & 255;
-	int Y = (int)floor(y) & 255;
-
-	x -= floor(x);
-	y -= floor(y);
+	float x = static_cast<float>(sampleX - cellX);
+	float y = static_cast<float>(sampleY - cellY);
 
 	float u = fade(x);
 	float v = fade(y);
@@ -88,36 +83,35 @@ float PerlinGeneratorImpl::getHeight(float posX, float posY)
 }
 
 
-BrownianPerlinGeneratorImpl::BrownianPerlinGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings) : GeneratorImpl(ctx, settings)
-{
-	octaves.emplace_back(ctx, settings);
-	octaves.emplace_back(ctx, settings);
-	octaves.emplace_back(ctx, settings);
-	octaves.emplace_back(ctx, settings);
+BrownianPerlinGeneratorImpl::BrownianPerlinGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings) : GeneratorImpl(ctx, settings) {
+	float frequency = 1.0f;
+	float currentAmplitude = 1.0f;
+	this->amplitude = 0;
+
+	for(int i = 0; i < octaveCount; i++){
+
+		CommonSettings newSettings = {
+				.seed = settings.seed,
+				.scale = settings.scale * frequency,
+				.amplitude = settings.amplitude * currentAmplitude,
+				.resolution = settings.resolution,
+				.cacheable = settings.cacheable
+		};
+		octaves.push_back(std::make_unique<PerlinGeneratorImpl>(ctx, newSettings));
+		frequency *= lacunarity;
+
+		amplitude += currentAmplitude;
+		currentAmplitude *= persistence;
+	}
 }
 
-float BrownianPerlinGeneratorImpl::getHeight(float posX, float posY)
-{
-    float totalHeight = 0.0f;
-    float frequency = 1.0f;
-    float currentAmplitude = 1.0f;
+float BrownianPerlinGeneratorImpl::getHeight(Vec2Int pos) {
+	float totalHeight = 0.0f;
 
-    const float lacunarity = 2.0f;
-    const float persistence = 0.5f;
-
-    for (int i = 0; i < octaves.size(); i++) {
-        CommonSettings octaveSettings = settings;
-        octaveSettings.scale = settings.scale * frequency;
-        octaveSettings.amplitude = currentAmplitude;
-
-        PerlinGeneratorImpl octaveGen(context, octaveSettings);
-        totalHeight += octaveGen.getHeight(posX, posY);
-
-        currentAmplitude *= persistence;
-        frequency *= lacunarity;
-    }
-
-    return totalHeight * settings.amplitude;
+	for (auto & octave : octaves) {
+		totalHeight += octave->getHeight(pos);
+	}
+	return totalHeight / amplitude;
 }
 
 bool BrownianPerlinGeneratorImpl::isDeterministic()

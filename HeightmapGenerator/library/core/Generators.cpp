@@ -1,143 +1,200 @@
 #include "Generators.h"
 #include "Helpers.h"
-#include <cstdlib>
+#include <algorithm>
 #include <cmath>
+#include <stdexcept>
+#include <span>
 
 GeneratorImpl::GeneratorImpl(ContextImpl* ctx, const CommonSettings& settings) : context(ctx), settings(settings) {}
 
-GeneratorImpl::~GeneratorImpl() {
-    ClearAllCache();
+GeneratorImpl::~GeneratorImpl() = default;
+
+void GeneratorImpl::generateChunkData(Vec2Int chunkPos, float* buffer) {
+	int32_t stride = std::max(settings.resolution - 1, 1);
+	Vec2Int origin = chunkPos * stride;
+	for (int32_t x = 0; x < settings.resolution; x++) {
+		for (int32_t y = 0; y < settings.resolution; y++) {
+			buffer[x * settings.resolution + y] = getHeight(origin + Vec2Int{x, y});
+		}
+	}
 }
 
-void GeneratorImpl::generateChunkData(int32_t chunkX, int32_t chunkY, float* buffer) {
-    int32_t stride = (settings.resolution > 1) ? (settings.resolution - 1) : 1;
-    float originX = static_cast<float>(chunkX * stride);
-    float originY = static_cast<float>(chunkY * stride);
-
-    for (int x = 0; x < settings.resolution; x++) {
-        for (int y = 0; y < settings.resolution; y++) {
-            float posX = originX + static_cast<float>(x);
-            float posY = originY + static_cast<float>(y);
-            buffer[x * settings.resolution + y] = getHeight(posX, posY);
-        }
-    }
+void GeneratorImpl::waitForAll() {
+	std::unique_lock lock(dataMutex);
+	jobsFinished.wait(lock, [this] {
+		return jobsInProgress == 0;
+	});
 }
 
-float* GeneratorImpl::GetChunk(int32_t x, int32_t y) {
-    Vec2Int pos(x, y);
-    if (settings.cacheable) {
-        auto it = cache.find(pos);
-        if (it != cache.end()) return it->second;
-    }
+std::shared_ptr<GeneratorImpl::ChunkData> GeneratorImpl::getChunkData(Vec2Int pos, bool forceSingleThreaded) {
+	auto chunk = requestChunkImpl(pos, forceSingleThreaded);
 
-    float* buffer = new float[settings.resolution * settings.resolution];
-    generateChunkData(x, y, buffer);
+	std::unique_lock lock(dataMutex);
+	jobsFinished.wait(lock, [&chunk] {
+		return chunk->ready;
+	});
 
-    if (settings.cacheable) {
-        cache[pos] = buffer;
-    }
-    return buffer;
+	return chunk;
 }
 
-float GeneratorImpl::GetPoint(int32_t x, int32_t y) {
-    int32_t stride = (settings.resolution > 1) ? (settings.resolution - 1) : 1;
-
-    if (settings.cacheable) {
-        int32_t chunkX = (x >= 0) ? (x / stride) : ((x - stride + 1) / stride);
-        int32_t chunkY = (y >= 0) ? (y / stride) : ((y - stride + 1) / stride);
-
-        auto it = cache.find(Vec2Int(chunkX, chunkY));
-        if (it != cache.end()) {
-            int localX = x - (chunkX * stride);
-            int localY = y - (chunkY * stride);
-            if (localX < settings.resolution && localY < settings.resolution) {
-                return it->second[localX * settings.resolution + localY];
-            }
-        }
-    }
-
-    float posX = x * settings.scale;
-    float posY = y * settings.scale;
-    return getHeight(posX, posY);
+void GeneratorImpl::getChunk(Vec2Int pos, float* buffer, bool forceSingleThreaded) {
+	if (!buffer) { 
+		return;
+	}
+	if (settings.cacheable) {
+		auto data = getChunkData(pos, forceSingleThreaded);
+		std::copy(data->data.begin(), data->data.end(), buffer);
+		return;
+	}
+	generateChunkData(pos, buffer);
 }
 
-void GeneratorImpl::RequestChunk(int32_t x, int32_t y) {
-    if (!settings.cacheable) return;
-    Vec2Int pos(x, y);
-    if (cache.find(pos) == cache.end()) {
-        float* buffer = new float[settings.resolution * settings.resolution];
-        generateChunkData(x, y, buffer);
-        cache[pos] = buffer;
-    }
+float GeneratorImpl::getPoint(Vec2Int pos, bool forceSingleThreaded) {
+	if (settings.cacheable) {
+		auto data = getChunkData(pointToChunk(pos), forceSingleThreaded);
+		return pointFromChunk(pos, data->data);
+	}
+	return getHeight(pos);
 }
 
-void GeneratorImpl::RequestPoint(int32_t x, int32_t y) {
-    if (!settings.cacheable) return;
-    int32_t stride = (settings.resolution > 1) ? (settings.resolution - 1) : 1;
-    int32_t chunkX = (x >= 0) ? (x / stride) : ((x - stride + 1) / stride);
-    int32_t chunkY = (y >= 0) ? (y / stride) : ((y - stride + 1) / stride);
-    RequestChunk(chunkX, chunkY);
+void GeneratorImpl::runChunkJob(Vec2Int pos, std::shared_ptr<ChunkData> chunk) {
+	std::vector<float> generated(settings.resolution * settings.resolution);
+	if (!drain.load(std::memory_order_relaxed)) {
+		generateChunkData(pos, generated.data());
+	}
+	{
+		std::lock_guard lock(dataMutex);
+		chunk->data = std::move(generated);
+		chunk->ready = true;
+		jobsInProgress--;
+	}
+	jobsFinished.notify_all();
 }
 
-float* GeneratorImpl::ProbeChunk(int32_t x, int32_t y, bool* ready) {
-    if (!settings.cacheable) { *ready = false; return nullptr; }
-    auto it = cache.find(Vec2Int(x, y));
-    if (it != cache.end()) {
-        *ready = true;
-        return it->second;
-    }
-    *ready = false;
-    return nullptr;
+std::shared_ptr<GeneratorImpl::ChunkData> GeneratorImpl::requestChunkImpl(Vec2Int pos, bool forceSingleThreaded) {
+	if (!settings.cacheable) return nullptr;
+
+	std::shared_ptr<ChunkData> chunk;
+	{
+		std::lock_guard lock(dataMutex);
+		auto it = cache.find(pos);
+		// If the chunk is already in the cache but is not ready and we are forcing single-threaded execution,
+		// we overwrite the existing chunk with a new one to ensure that the chunk is generated in the current thread.
+		// This prevents potential deadlocks when the pool is full with HEG jobs.
+		// TODO: Cancel the existing job instead of overwriting it, if it has not started yet.
+		if (it != cache.end() && (it->second->ready || !forceSingleThreaded)) {
+			return it->second;
+		}
+		chunk = std::make_shared<ChunkData>();
+		cache[pos] = chunk;
+		jobsInProgress++;
+	}
+
+	if (context->numThreads() > 0 && !forceSingleThreaded) {
+		auto self = shared_from_this();
+		context->enqueue([self, pos, chunk] {
+			self->runChunkJob(pos, chunk);
+		});
+	}
+	else {
+		runChunkJob(pos, chunk);
+	}
+	return chunk;
 }
 
-float GeneratorImpl::ProbePoint(int32_t x, int32_t y, bool* ready) {
-    if (!settings.cacheable) { *ready = false; return 0.0f; }
-    int32_t stride = (settings.resolution > 1) ? (settings.resolution - 1) : 1;
-    int32_t chunkX = (x >= 0) ? (x / stride) : ((x - stride + 1) / stride);
-    int32_t chunkY = (y >= 0) ? (y / stride) : ((y - stride + 1) / stride);
-
-    auto it = cache.find(Vec2Int(chunkX, chunkY));
-    if (it != cache.end()) {
-        *ready = true;
-        int localX = x - (chunkX * stride);
-        int localY = y - (chunkY * stride);
-        if (localX < settings.resolution && localY < settings.resolution) {
-            return it->second[localX * settings.resolution + localY];
-        }
-    }
-    *ready = false;
-    return 0.0f;
+void GeneratorImpl::requestChunk(Vec2Int pos, bool forceSingleThreaded) {
+	requestChunkImpl(pos, forceSingleThreaded);
 }
 
-void GeneratorImpl::CleanChunkFromCache(int32_t x, int32_t y) {
-    if (!settings.cacheable) return;
-    auto it = cache.find(Vec2Int(x, y));
-    if (it != cache.end()) {
-        delete[] it->second;
-        cache.erase(it);
-    }
+void GeneratorImpl::requestPoint(Vec2Int pos, bool forceSingleThreaded) {
+	if (!settings.cacheable) return;
+	requestChunk(pointToChunk(pos), forceSingleThreaded);
 }
 
-void GeneratorImpl::ClearAllCache() {
-    if (!settings.cacheable) return;
-    for (auto& pair : cache) {
-        delete[] pair.second;
-    }
-    cache.clear();
+bool GeneratorImpl::probeChunk(Vec2Int pos, float* buffer) {
+	if (!settings.cacheable) return false;
+
+	std::shared_ptr<ChunkData> data;
+	{
+		std::lock_guard lock(dataMutex);
+		auto it = cache.find(pos);
+		if (it == cache.end() || !it->second->ready) {
+			return false;
+		}
+		data = it->second;
+	}
+	if (buffer) {
+		std::copy(data->data.begin(), data->data.end(), buffer);
+	}
+	return true;
 }
 
-float RandomGeneratorImpl::getHeight(float posX, float posY) {
-    return randomFloatBetween(0.f, 1.f) * settings.amplitude;
+bool GeneratorImpl::probePoint(Vec2Int pos, float* point) {
+	if (!settings.cacheable) return false;
+
+	std::shared_ptr<ChunkData> data;
+	{
+		std::lock_guard lock(dataMutex);
+		auto it = cache.find(pointToChunk(pos));
+		if (it == cache.end() || !it->second->ready) {
+			return false;
+		}
+		data = it->second;
+	}
+	if (point) {
+		*point = pointFromChunk(pos, data->data);
+	}
+	return true;
+}
+
+void GeneratorImpl::cleanChunkFromCache(Vec2Int pos) {
+	std::lock_guard lock(dataMutex);
+	cache.erase(pos);
+}
+
+void GeneratorImpl::clearAllCache() {
+	std::lock_guard lock(dataMutex);
+	cache.clear();
+}
+
+ContextImpl* GeneratorImpl::getContext() const {
+	return context;
+}
+
+const CommonSettings& GeneratorImpl::getSettings() const {
+	return settings;
+}
+
+Vec2Int GeneratorImpl::pointToChunk(Vec2Int point) const {
+	int32_t stride = std::max(settings.resolution - 1, 1);
+	return Vec2Int(
+		((point.x >= 0) ? point.x : (point.x - stride + 1)) / stride,
+		((point.y >= 0) ? point.y : (point.y - stride + 1)) / stride
+	);
+}
+
+float GeneratorImpl::pointFromChunk(Vec2Int pos, const std::vector<float>& data) const {
+	const auto stride = std::max(settings.resolution - 1, 1);
+	const auto local = pos - pointToChunk(pos) * stride;
+	return data[local.x * settings.resolution + local.y];
+}
+
+void GeneratorImpl::fastDrain() {
+	drain.store(true, std::memory_order_relaxed);
+}
+
+float RandomGeneratorImpl::getHeight(Vec2Int) {
+	return randomFloatBetween(0.f, 1.f) * settings.amplitude;
 }
 
 bool RandomGeneratorImpl::isDeterministic() {
-    return false;
+	return false;
 }
 
-float CoordinateGeneratorImpl::getHeight(float posX, float posY) {
-    return (posX + posY) * settings.amplitude;
+float CoordinateGeneratorImpl::getHeight(Vec2Int pos) {
+	return (pos.x * settings.scale + pos.y * settings.scale) * settings.amplitude;
 }
 
 bool CoordinateGeneratorImpl::isDeterministic() {
-    return true;
+	return true;
 }

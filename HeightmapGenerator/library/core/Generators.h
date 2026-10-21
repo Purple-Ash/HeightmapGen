@@ -1,78 +1,121 @@
 #pragma once
 #include "HeightmapGenAPI.h"
 #include "HeightmapGenContext.h"
-#include <cstdint>
+#include "onnxruntime_cxx_api.h"
 #include <vector>
 #include <unordered_map>
+#include <memory>
+#include <mutex>
+#include <atomic>
 
-struct GeneratorImpl {
+struct GeneratorImpl : std::enable_shared_from_this<GeneratorImpl> {
+private:
+	struct ChunkData {
+		std::vector<float> data{};
+		bool ready = false;
+	};
+	std::mutex dataMutex;
+	std::condition_variable jobsFinished;
+	std::unordered_map<Vec2Int, std::shared_ptr<ChunkData>> cache;
+	int32_t jobsInProgress = 0;
+	std::atomic<bool> drain{false};
+
+	std::shared_ptr<ChunkData> requestChunkImpl(Vec2Int pos, bool forceSingleThreaded);
+	void runChunkJob(Vec2Int pos, std::shared_ptr<ChunkData> chunk);
+	std::shared_ptr<ChunkData> getChunkData(Vec2Int pos, bool forceSingleThreaded);
+	float pointFromChunk(Vec2Int pos, const std::vector<float>& data) const;
+
 protected:
-    CommonSettings settings;
-    std::unordered_map<Vec2Int, float*> cache;
+	ContextImpl* context;
+	CommonSettings settings;
+
+	virtual float getHeight(Vec2Int pos) = 0;
+	virtual void generateChunkData(Vec2Int chunkPos, float* buffer);
 
 public:
-    ContextImpl* context;
+	GeneratorImpl(ContextImpl* ctx, const CommonSettings& settings);
+	virtual ~GeneratorImpl();
 
-    GeneratorImpl(ContextImpl* ctx, const CommonSettings& settings);
-    virtual ~GeneratorImpl();
+	void getChunk(Vec2Int pos, float* buffer, bool forceSingleThreaded = false);
+	float getPoint(Vec2Int pos, bool forceSingleThreaded = false);
+	void requestChunk(Vec2Int pos, bool forceSingleThreaded = false);
+	void requestPoint(Vec2Int pos, bool forceSingleThreaded = false);
+	bool probeChunk(Vec2Int pos, float* buffer);
+	bool probePoint(Vec2Int pos, float* point);
+	void cleanChunkFromCache(Vec2Int pos);
+	void clearAllCache();
 
-    virtual float getHeight(float posX, float posY) = 0;
-    virtual void generateChunkData(int32_t chunkX, int32_t chunkY, float* buffer);
+	virtual bool isDeterministic() = 0;
 
-    float* GetChunk(int32_t x, int32_t y);
-    float GetPoint(int32_t x, int32_t y);
-    void RequestChunk(int32_t x, int32_t y);
-    void RequestPoint(int32_t x, int32_t y);
-    float* ProbeChunk(int32_t x, int32_t y, bool* ready);
-    float ProbePoint(int32_t x, int32_t y, bool* ready);
-    void CleanChunkFromCache(int32_t x, int32_t y);
-    void ClearAllCache();
+	ContextImpl* getContext() const;
+	const CommonSettings& getSettings() const;
 
-    virtual bool isDeterministic() = 0;
+	Vec2Int pointToChunk(Vec2Int point) const;
+
+	void waitForAll();
+	void fastDrain();
 };
 
 class CoordinateGeneratorImpl : public GeneratorImpl {
+	float getHeight(Vec2Int pos) override;
+
 public:
-    CoordinateGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings) : GeneratorImpl(ctx, settings) {}
-    float getHeight(float posX, float posY) override;
-    bool isDeterministic() override;
+	CoordinateGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings) : GeneratorImpl(ctx, settings) {}
+	bool isDeterministic() override;
 };
 
 class RandomGeneratorImpl : public GeneratorImpl {
+	float getHeight(Vec2Int pos) override;
+
 public:
-    RandomGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings) : GeneratorImpl(ctx, settings) {}
-    float getHeight(float posX, float posY) override;
-    bool isDeterministic() override;
+	RandomGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings) : GeneratorImpl(ctx, settings) {}
+	bool isDeterministic() override;
 };
 
 class PerlinGeneratorImpl : public GeneratorImpl {
+	friend class BrownianPerlinGeneratorImpl;
+	float getHeight(Vec2Int pos) override;
+
 public:
-    PerlinGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings);
-    float getHeight(float posX, float posY) override;
-    bool isDeterministic() override;
+	PerlinGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings);
+	bool isDeterministic() override;
 };
 
 class BrownianPerlinGeneratorImpl : public GeneratorImpl {
-    std::vector<PerlinGeneratorImpl> octaves;
+	std::vector<std::unique_ptr<PerlinGeneratorImpl>> octaves;
+	float amplitude;
+
+	const float lacunarity = 2.0f;
+	const float persistence = 0.5f;
+	const unsigned int octaveCount = 4;
+
+	float getHeight(Vec2Int pos) override;
+
 public:
-    BrownianPerlinGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings);
-    float getHeight(float posX, float posY) override;
-    bool isDeterministic() override;
+	BrownianPerlinGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings);
+	bool isDeterministic() override;
+};
+
+class VoronoiGeneratorImpl : public GeneratorImpl {
+	float getHeight(Vec2Int pos) override;
+
+	public:
+		VoronoiGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings);
+		bool isDeterministic() override;
 };
 
 class HydraulicErosionGeneratorImpl : public GeneratorImpl {
-    HydraulicErosionSettings hydraulicErosionSettings;
-    // Non-owning: the base generator is created and destroyed independently by the caller
-    // via the C API (e.g. CreatePerlinGenerator), and just referenced here by handle.
-    GeneratorImpl* baseGenerator = nullptr;
+	HydraulicErosionSettings hydraulicErosionSettings;
+	std::shared_ptr<GeneratorImpl> baseGenerator;
+
+	float getHeight(Vec2Int pos) override;
+	void generateChunkData(Vec2Int chunkPos, float* buffer) override;
+
 public:
     HydraulicErosionGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings, const HydraulicErosionSettings& erosionSettings);
-    float getHeight(float posX, float posY) override;
-    void generateChunkData(int32_t chunkX, int32_t chunkY, float* buffer) override;
     bool isDeterministic() override;
 };
 
-// TODO: make thread-safe version of generator
 // TODO: make GPU-capable version of generator
 /// @brief Neural-network powered terrain generator, adapted from "A step towards procedural terrain generation with GANs" 2017 Beckham, Pal
 /// 
@@ -81,6 +124,8 @@ public:
 ///
 /// Currently only single-threaded and CPU-based
 class BPGeneratorImpl : public GeneratorImpl {
+    std::mutex inferenceMutex;
+
     /// @brief Model session, MUST not live longer then Ort::Env used to create it 
     Ort::Session session;
 
@@ -113,24 +158,20 @@ class BPGeneratorImpl : public GeneratorImpl {
     std::vector<int64_t> outputTensorShape;
     // effectively resolution^2 and number of elements in output buffer
     std::size_t outputTensorElements; 
+
+    void generateChunkData(Vec2Int chunkPos, float* buffer) override;
+    float getHeight(Vec2Int pos) override;
+
 public:
     /// @brief 
     /// @param ctx base generator context
     /// @param commonSettings mostly unused, save for cacheability. Resolution will be overriden by the model's real resolution
-    /// @param env Ort::Env used to create session, there should only ever be one per process. BPGenerator MUST not live longer then the env.
-    /// @param sessionOptions options for model session
     /// @param modelPath relative path to .onnx file with exported model
     BPGeneratorImpl(
         ContextImpl* ctx, 
         const CommonSettings& commonSettings, 
-        const Ort::Env& env,
-        const Ort::SessionOptions& sessionOptions,
         const char* modelPath
     );
-    void generateChunkData(int32_t chunkX, int32_t chunkY, float* buffer) override;
+
     bool isDeterministic() override;
-    float getHeight(float posX, float posY) override;
-    /// @brief Return the resolution read from model
-    int64_t getResolution();
-    size_t getOutputElementsCount();
 };

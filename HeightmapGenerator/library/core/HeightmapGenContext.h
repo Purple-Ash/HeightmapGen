@@ -2,17 +2,33 @@
 #include "HeightmapGenAPI.h"
 #include "Helpers.h"
 
-namespace std {
-    template<> struct hash<Vec2Int> {
-        size_t operator()(const Vec2Int& c) const noexcept {
-            size_t h1 = hash<int32_t>{}(c.x);
-            size_t h2 = hash<int32_t>{}(c.y);
-            return h1 ^ (h2 + 0x9e3779b9 + (h1 << 6) + (h1 >> 2));
-        }
-    };
-}
+#include <condition_variable>
+#include <deque>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <thread>
+#include <unordered_map>
 
 struct ContextImpl {
-    std::vector<GeneratorHandle> GeneratorImpls;
-    ~ContextImpl();
+	ContextImpl(uint32_t workerCount = 0);
+	~ContextImpl();
+
+	Generator registerGenerator(std::shared_ptr<GeneratorImpl> generator);
+	std::shared_ptr<GeneratorImpl> getGenerator(Generator generator);
+	void removeGenerator(Generator generator);
+	void enqueue(std::function<void()> task);
+
+	uint32_t numThreads() const {
+		return workers.size();
+	}
+
+private:
+	std::mutex generatorsMutex;
+	std::unordered_map<Generator, std::shared_ptr<GeneratorImpl>> generators;
+	std::mutex queueMutex;
+	std::condition_variable queueChanged;
+	std::deque<std::function<void()>> tasks;
+	bool closing = false;
+	std::vector<std::thread> workers;
 };
