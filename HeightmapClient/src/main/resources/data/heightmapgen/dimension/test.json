@@ -1,0 +1,6 @@
+{
+    "type": "heightmapgen:test",
+    "generator": {
+        "type": "heightmapgen:generator"
+    }
+}
