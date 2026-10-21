@@ -75,6 +75,7 @@ BPGeneratorImpl::BPGeneratorImpl(
 bool BPGeneratorImpl::isDeterministic() { return true; }
 
 void BPGeneratorImpl::generateChunkData(Vec2Int chunkPos, float* buffer) {
+    std::lock_guard lock(inferenceMutex);
     std::seed_seq seed{
         static_cast<uint32_t>(settings.seed),
         static_cast<uint32_t>(settings.seed >> 32),
