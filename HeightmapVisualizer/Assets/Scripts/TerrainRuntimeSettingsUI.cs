@@ -578,7 +578,7 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
 
         statisticsText.text = heights + slopes +
                               "\nElapsed generation: " + terrain.ElapsedGenerationSeconds.ToString("F2", CultureInfo.InvariantCulture) + " s" +
-                              "\nAverage time / chunk: " + averageChunkTime;
+                              "\nElapsed / completed chunk: " + averageChunkTime;
     }
 
     private GameObject CreateClickBlocker(string name, UnityEngine.Events.UnityAction onClick)

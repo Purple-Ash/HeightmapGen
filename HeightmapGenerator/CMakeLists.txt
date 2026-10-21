@@ -4,6 +4,8 @@ project(HeightmapGen)
 
 set(CMAKE_CXX_STANDARD 20)
 
+find_package(Threads REQUIRED)
+
 include(FetchContent)
 
 FetchContent_Declare(
@@ -17,18 +19,20 @@ FetchContent_MakeAvailable(googletest)
 file(GLOB_RECURSE  LIBRARY_SOURCES library/*.cpp)
 file(GLOB_RECURSE  TEST_SOURCES tests/*.cpp)
 
-
 add_library(HeightmapGen SHARED
     ${LIBRARY_SOURCES}
         library/core/Helpers.h
         library/core/PerlinGenerator.cpp
 )
 
+target_link_libraries(HeightmapGen PRIVATE
+	Threads::Threads
+)
+
 target_include_directories(HeightmapGen
     PUBLIC ${CMAKE_SOURCE_DIR}/library/api
     PRIVATE ${CMAKE_SOURCE_DIR}/library/core
 )
-
 
 add_executable(Tests
     ${TEST_SOURCES}
@@ -67,8 +71,6 @@ if (HEIGHTMAP_BUILD_VIEWER)
 			${GLAD_INCLUDE_DIRS}
 	)
 endif()
-
-find_package(Threads REQUIRED)
 
 target_link_libraries(Tests PRIVATE
     HeightmapGen

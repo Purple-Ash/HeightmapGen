@@ -2,6 +2,7 @@
 #include "args.hpp"
 
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
@@ -14,14 +15,17 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 namespace fs = std::filesystem;
+using clk = std::chrono::steady_clock;
 
 namespace opt {
 	using OutputDirectory =            Option<fs::path,  "output",                  "Output directory for generated heightmaps",   true>;
 	using DllPath =                    Option<fs::path,  "dll",                     "HeightmapGen DLL path",                       false>;
 	using Samples =                    OptionD<int32_t,  "samples",                 "Number of samples to generate",               false, 10>;
+	using Threads =                    OptionD<int32_t,  "threads",                 "Internal workers (0 selects CPU count)",      false, 0>;
 	using ImageSize =                  OptionD<int32_t,  "size",                    "Image width and height",                      false, 128>;
 	using ErosionSize =                OptionD<int32_t,  "erosion-size",            "Internal erosion image size (0 uses --size)", false, 0>;
 	using DatasetSeed =                OptionD<uint32_t, "dataset-seed",            "Dataset origin/scale seed",                   false, 0>;
@@ -46,7 +50,7 @@ namespace opt {
 }
 
 using Options = OptionRegistry<
-	opt::OutputDirectory, opt::DllPath, opt::Samples, opt::ImageSize, 
+	opt::OutputDirectory, opt::DllPath, opt::Samples, opt::Threads, opt::ImageSize,
 	opt::ErosionSize, opt::DatasetSeed, opt::ScaleMin, opt::ScaleMax, opt::Overwrite,
 	opt::erosion::Seed, opt::erosion::Iterations, opt::erosion::Radius, opt::erosion::MaxDropletLifetime, 
 	opt::erosion::Inertia, opt::erosion::SedimentCapacityFactor, opt::erosion::MinSedimentCapacity,
@@ -74,8 +78,8 @@ HydraulicErosionSettings makeErosionSettings(const Options& options) {
 
 class ContextGuard {
 public:
-	ContextGuard(HeightmapGenerator& hg) : hg(hg) {
-		context = hg.api().createContext();
+	ContextGuard(HeightmapGenerator& hg, uint32_t workerCount) : hg(hg) {
+		context = hg.api().createContext(workerCount);
 	}
 	~ContextGuard() {
 		hg.api().destroyContext(context);
@@ -174,60 +178,96 @@ int main(int argc, char** argv) {
 		return EXIT_FAILURE;
 	}
 
+	const int32_t requestedThreads = options.get<opt::Threads>();
+	const int32_t sampleCount = options.get<opt::Samples>();
+	const uint32_t workerCount = requestedThreads == 0 ? std::max(1u, std::thread::hardware_concurrency()) : requestedThreads;
+
 	std::mt19937 random(options.get<opt::DatasetSeed>());
 	std::uniform_int_distribution<int32_t> originDistribution(-100000, 100000);
 	std::uniform_real_distribution<float> logScaleDistribution(std::log(options.get<opt::ScaleMin>()), std::log(options.get<opt::ScaleMax>()));
 
-	for (int32_t index = 0; index < options.get<opt::Samples>(); index++) {
-		const int32_t regionX = originDistribution(random);
-		const int32_t regionY = originDistribution(random);
-		const float scale = std::exp(logScaleDistribution(random));
-		const auto name = sampleName(index);
+	const int32_t batchSize = 100;
 
-		ContextGuard context(hg);
-		std::vector<float> preErosion;
-		std::vector<float> eroded;
-		std::vector<float> preErosionGenerated;
-		std::vector<float> erodedGenerated;
-		preErosion.resize(imageSize * imageSize);
-		eroded.resize(imageSize * imageSize);
-		preErosionGenerated.resize(erosionSize * erosionSize);
-		erodedGenerated.resize(erosionSize * erosionSize);
+	struct PendingSample {
+		int32_t regionX;
+		int32_t regionY;
+		Generator base;
+		Generator erosion;
+	};
 
-		CommonSettings commonSettings{
-			.seed = options.get<opt::DatasetSeed>(),
-			.scale = scale,
-			.amplitude = 1.0f,
-			.resolution = erosionSize,
-			.cacheable = false 
-		};
+	ContextGuard context(hg, workerCount);
 
-		CommonSettings baseSettings = commonSettings;
-		baseSettings.amplitude = 1.0f;
-		Generator baseGenerator = hg.api().createBrownianPerlinGenerator(context.get(), baseSettings);
+	clk::time_point startTime = clk::now();
 
-		HydraulicErosionSettings erosionSettings = makeErosionSettings(options);
-		erosionSettings.baseGeneratorImpl = baseGenerator;
-		Generator erosionGenerator = hg.api().createHydraulicErosionGenerator(context.get(), commonSettings, erosionSettings);
+	for (int32_t baseIndex = 0; baseIndex < sampleCount; baseIndex += std::min(batchSize, sampleCount - baseIndex)) {
+		std::vector<PendingSample> pending;
+		for (int32_t sample = 0; sample < std::min(batchSize, sampleCount - baseIndex); sample++) {
+			const int32_t regionX = originDistribution(random);
+			const int32_t regionY = originDistribution(random);
+			const float scale = std::exp(logScaleDistribution(random));
 
-		const bool generatorsReady = baseGenerator != nullptr && erosionGenerator != nullptr;
-		if (generatorsReady) {
-			hg.api().getChunk(baseGenerator, regionX, regionY, preErosionGenerated.data());
-			hg.api().getChunk(erosionGenerator, regionX, regionY, erodedGenerated.data());
+			CommonSettings commonSettings{
+				.seed = options.get<opt::DatasetSeed>(),
+				.scale = scale,
+				.amplitude = 1.0f,
+				.resolution = erosionSize,
+				.cacheable = true
+			};
+
+			CommonSettings baseSettings = commonSettings;
+			baseSettings.amplitude = 1.0f;
+			baseSettings.cacheable = false;
+			Generator baseGenerator = hg.api().createBrownianPerlinGenerator(context.get(), baseSettings);
+
+			HydraulicErosionSettings erosionSettings = makeErosionSettings(options);
+			erosionSettings.baseGeneratorImpl = baseGenerator;
+			Generator erosionGenerator = hg.api().createHydraulicErosionGenerator(context.get(), commonSettings, erosionSettings);
+
+			const bool generatorsReady = baseGenerator != nullptr && erosionGenerator != nullptr;
+			if (generatorsReady) {
+				hg.api().requestChunk(erosionGenerator, regionX, regionY);
+				pending.push_back({ regionX, regionY, baseGenerator, erosionGenerator });
+			}
+			else {
+				std::cout << "Failed while generating sample " << baseIndex + sample << ".\n";
+				return EXIT_FAILURE;
+			}
+		}
+
+		for (int32_t sample = 0; sample < std::min(batchSize, sampleCount - baseIndex); sample++) {
+			const auto name = sampleName(baseIndex + sample);
+
+			std::vector<float> preErosion;
+			std::vector<float> eroded;
+			std::vector<float> preErosionGenerated;
+			std::vector<float> erodedGenerated;
+			preErosion.resize(imageSize * imageSize);
+			eroded.resize(imageSize * imageSize);
+			preErosionGenerated.resize(erosionSize * erosionSize);
+			erodedGenerated.resize(erosionSize * erosionSize);
+
+			hg.api().getChunk(pending[sample].erosion, pending[sample].regionX, pending[sample].regionY, erodedGenerated.data());
+			hg.api().getChunk(pending[sample].base, pending[sample].regionX, pending[sample].regionY, preErosionGenerated.data());
+
 			cropCenter(preErosionGenerated, erosionSize, preErosion, imageSize);
 			cropCenter(erodedGenerated, erosionSize, eroded, imageSize);
-		}
 
-		if (!generatorsReady
-			|| !writeBin(options.get<opt::OutputDirectory>() / "in" / name, preErosion)
-			|| !writeBin(options.get<opt::OutputDirectory>() / "out" / name, eroded)) {
-			std::cout << "Failed while generating sample " << index << ".\n";
-			return EXIT_FAILURE;
-		}
+			if (!writeBin(options.get<opt::OutputDirectory>() / "in" / name, preErosion)
+				|| !writeBin(options.get<opt::OutputDirectory>() / "out" / name, eroded)) {
+				std::cout << "Failed while generating sample " << baseIndex + sample << ".\n";
+				return EXIT_FAILURE;
+			}
 
-		std::cout << "Generated " << index + 1 << '/' << options.get<opt::Samples>() << "\r" << std::flush;
+			hg.api().destroyGenerator(pending[sample].erosion);
+			hg.api().destroyGenerator(pending[sample].base);
+
+			std::cout << "Generated " << baseIndex + sample + 1 << '/' << sampleCount << "\r" << std::flush;
+		}
 	}
 
-	std::cout << "\nWrote " << options.get<opt::Samples>() << " paired heightmaps to " << options.get<opt::OutputDirectory>().string() << ".\n";
+	clk::time_point endTime = clk::now();
+	std::chrono::duration<double> elapsedTime = endTime - startTime;
+	std::cout << "\nWrote " << sampleCount << " paired heightmaps to " << options.get<opt::OutputDirectory>().string() << ".\n";
+	std::cout << "Elapsed time: " << elapsedTime.count() << " seconds (" << (sampleCount / elapsedTime.count()) << " samples/sec).\n";
 	return EXIT_SUCCESS;
 }
