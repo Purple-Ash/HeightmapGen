@@ -85,7 +85,6 @@ Generator createBPGenerator(int resolution, float amplitude, const char* modelPa
 }
 
 Generator createModelErosion(int resolution, float amplitude, ModelErosionSettings modelErosionSettings) {
-	Generator baseGenerator = createSimple(createBrownianPerlinGenerator, 0.01f, 1.0f);
 	CommonSettings settings{};
 	settings.seed = 42;
 	settings.scale = 1.0f;
