@@ -27,6 +27,7 @@ namespace opt {
 	using Samples =                    OptionD<int32_t,  "samples",                 "Number of samples to generate",               false, 10>;
 	using Threads =                    OptionD<int32_t,  "threads",                 "Internal workers (0 selects CPU count)",      false, 0>;
 	using ImageSize =                  OptionD<int32_t,  "size",                    "Image width and height",                      false, 128>;
+	using BaseSize =                   OptionD<int32_t,  "base-size",               "Saved base image size (0 uses --size)",       false, 0>;
 	using ErosionSize =                OptionD<int32_t,  "erosion-size",            "Internal erosion image size (0 uses --size)", false, 0>;
 	using DatasetSeed =                OptionD<uint32_t, "dataset-seed",            "Dataset origin/scale seed",                   false, 0>;
 	using ScaleMin =                   OptionD<float,    "scale-min",               "Minimum Brownian-Perlin frequency",           false, 0.005f>;
@@ -51,7 +52,7 @@ namespace opt {
 
 using Options = OptionRegistry<
 	opt::OutputDirectory, opt::DllPath, opt::Samples, opt::Threads, opt::ImageSize,
-	opt::ErosionSize, opt::DatasetSeed, opt::ScaleMin, opt::ScaleMax, opt::Overwrite,
+	opt::BaseSize, opt::ErosionSize, opt::DatasetSeed, opt::ScaleMin, opt::ScaleMax, opt::Overwrite,
 	opt::erosion::Seed, opt::erosion::Iterations, opt::erosion::Radius, opt::erosion::MaxDropletLifetime, 
 	opt::erosion::Inertia, opt::erosion::SedimentCapacityFactor, opt::erosion::MinSedimentCapacity,
 	opt::erosion::ErodeSpeed, opt::erosion::DepositSpeed, opt::erosion::EvaporateSpeed, 
@@ -137,11 +138,28 @@ bool prepareOutput(const fs::path& root) {
 	return in && out;
 }
 
+int32_t centeredOffset(int32_t sourceSize, int32_t destinationSize) {
+	const int32_t difference = sourceSize - destinationSize;
+	return difference >= 0 ? difference / 2 : -((-difference + 1) / 2);
+}
+
 void cropCenter(const std::vector<float>& source, int32_t sourceSize, std::vector<float>& destination, int32_t destinationSize) {
-	const int32_t offset = (sourceSize - destinationSize) / 2;
+	const int32_t offset = centeredOffset(sourceSize, destinationSize);
 	for (int32_t x = 0; x < destinationSize; x++) {
 		for (int32_t y = 0; y < destinationSize; y++) {
 			destination[x * destinationSize + y] = source[(x + offset) * sourceSize + (y + offset)];
+		}
+	}
+}
+
+void generateBaseImage(HeightmapGenerator& hg, Generator generator, int32_t regionX, int32_t regionY,
+					   int32_t erosionSize, int32_t baseSize, std::vector<float>& destination) {
+	const int32_t stride = std::max(erosionSize - 1, 1);
+	const int32_t startX = regionX * stride + centeredOffset(erosionSize, baseSize);
+	const int32_t startY = regionY * stride + centeredOffset(erosionSize, baseSize);
+	for (int32_t x = 0; x < baseSize; x++) {
+		for (int32_t y = 0; y < baseSize; y++) {
+			destination[x * baseSize + y] = hg.api().getPoint(generator, startX + x, startY + y);
 		}
 	}
 }
@@ -155,7 +173,12 @@ int main(int argc, char** argv) {
 	}
 
 	const int32_t imageSize = options.get<opt::ImageSize>();
+	const int32_t baseSize = options.get<opt::BaseSize>() == 0 ? imageSize : options.get<opt::BaseSize>();
 	const int32_t erosionSize = options.get<opt::ErosionSize>() == 0 ? imageSize : options.get<opt::ErosionSize>();
+	if (imageSize <= 0 || baseSize <= 0 || erosionSize <= 0) {
+		std::cout << "Image sizes must be greater than zero.\n";
+		return EXIT_FAILURE;
+	}
 	if (erosionSize < imageSize) {
 		std::cout << "Erosion size must not be smaller than image size.\n";
 		return EXIT_FAILURE;
@@ -237,22 +260,19 @@ int main(int argc, char** argv) {
 		for (int32_t sample = 0; sample < std::min(batchSize, sampleCount - baseIndex); sample++) {
 			const auto name = sampleName(baseIndex + sample);
 
-			std::vector<float> preErosion;
+			std::vector<float> baseImage;
 			std::vector<float> eroded;
-			std::vector<float> preErosionGenerated;
 			std::vector<float> erodedGenerated;
-			preErosion.resize(imageSize * imageSize);
+			baseImage.resize(baseSize * baseSize);
 			eroded.resize(imageSize * imageSize);
-			preErosionGenerated.resize(erosionSize * erosionSize);
 			erodedGenerated.resize(erosionSize * erosionSize);
 
 			hg.api().getChunk(pending[sample].erosion, pending[sample].regionX, pending[sample].regionY, erodedGenerated.data());
-			hg.api().getChunk(pending[sample].base, pending[sample].regionX, pending[sample].regionY, preErosionGenerated.data());
+			generateBaseImage(hg, pending[sample].base, pending[sample].regionX, pending[sample].regionY, erosionSize, baseSize, baseImage);
 
-			cropCenter(preErosionGenerated, erosionSize, preErosion, imageSize);
 			cropCenter(erodedGenerated, erosionSize, eroded, imageSize);
 
-			if (!writeBin(options.get<opt::OutputDirectory>() / "in" / name, preErosion)
+			if (!writeBin(options.get<opt::OutputDirectory>() / "in" / name, baseImage)
 				|| !writeBin(options.get<opt::OutputDirectory>() / "out" / name, eroded)) {
 				std::cout << "Failed while generating sample " << baseIndex + sample << ".\n";
 				return EXIT_FAILURE;
