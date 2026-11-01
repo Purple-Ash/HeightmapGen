@@ -17,7 +17,8 @@ public class TerrainGen : MonoBehaviour
         HydraulicErosion,
         Perlin,
         BrownianNoise,
-        BPGenerator
+        BPGenerator,
+        ModelErosion
     }
 
     [Header("Terrain Common Settings")]
@@ -33,6 +34,10 @@ public class TerrainGen : MonoBehaviour
     [Header("BP Generator Settings")]
     [Tooltip("ONNX model path, either absolute or relative to StreamingAssets. Resolution must match the model output.")]
     [SerializeField] private string bpModelPath = "best_step6126.onnx";
+
+    [Header("Model Erosion Settings")]
+    [Tooltip("ONNX model path, either absolute or relative to StreamingAssets. Resolution must match the model output.")]
+    [SerializeField] private string erosionModelPath = "erosion_model.onnx";
 
     [Header("Hydraulic Erosion Settings")]
     [SerializeField] private int erosionSeed;
@@ -128,6 +133,25 @@ public class TerrainGen : MonoBehaviour
     {
         IsGenerating = true;
 
+        string resolvedErosionModelPath = null;
+        if (generatorType == GeneratorType.ModelErosion)
+        {
+            if (!string.IsNullOrWhiteSpace(erosionModelPath))
+            {
+                resolvedErosionModelPath = Path.IsPathRooted(erosionModelPath)
+                    ? erosionModelPath
+                    : Path.Combine(Application.streamingAssetsPath, erosionModelPath);
+            }
+
+            if (resolvedErosionModelPath == null || !File.Exists(resolvedErosionModelPath))
+            {
+                Debug.LogError($"Model erosion ONNX model not found: {resolvedErosionModelPath ?? "(empty path)"}");
+                generationCoroutine = null;
+                IsGenerating = false;
+                yield break;
+            }
+        }
+
         string resolvedBPModelPath = null;
         if (generatorType == GeneratorType.BPGenerator)
         {
@@ -167,6 +191,17 @@ public class TerrainGen : MonoBehaviour
 
         switch (generatorType)
         {
+            case GeneratorType.ModelErosion:
+                var modelBaseSettings = commonSettings;
+                modelBaseSettings.amplitude = 1.0f;
+                baseGenerator = HeightmapGenAPI.createBrownianPerlinGenerator(context, modelBaseSettings);
+                generator = HeightmapGenAPI.createModelErosionGenerator(context, commonSettings, new HeightmapGenAPI.ModelErosionSettings
+                {
+                    baseGeneratorImpl = baseGenerator,
+                    modelPath = resolvedErosionModelPath
+                });
+                break;
+
             case GeneratorType.Perlin:
                 generator = HeightmapGenAPI.createPerlinGenerator(context, commonSettings);
                 break;
@@ -176,7 +211,10 @@ public class TerrainGen : MonoBehaviour
                 break;
 
             case GeneratorType.BPGenerator:
-                generator = HeightmapGenAPI.createBPGenerator(context, commonSettings, resolvedBPModelPath);
+                generator = HeightmapGenAPI.createBPGenerator(context, commonSettings, new HeightmapGenAPI.BPGeneratorSettings
+                {
+                    modelPath = resolvedBPModelPath
+                });
                 break;
 
             case GeneratorType.HydraulicErosion:

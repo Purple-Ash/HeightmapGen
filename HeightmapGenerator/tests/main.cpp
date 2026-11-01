@@ -216,13 +216,13 @@ TEST(OrtModelTests, BPModelInvalidPathTest) {
     };
     for (const char* modelPath : invalidPaths) {
         Generator gen = nullptr;
-        EXPECT_NO_THROW(gen = createBPGenerator(ctx, commonSettings, modelPath));
+        EXPECT_NO_THROW(gen = createBPGenerator(ctx, commonSettings, BPGeneratorSettings{ modelPath }));
         EXPECT_EQ(gen, nullptr);
         destroyGenerator(gen);
     }
 
     // Failed loads must leave the context usable for subsequent creation.
-    Generator gen = createBPGenerator(ctx, commonSettings, "identity.onnx");
+    Generator gen = createBPGenerator(ctx, commonSettings, BPGeneratorSettings{ "identity.onnx" });
     EXPECT_NE(gen, nullptr);
     destroyContext(ctx);
 }
@@ -236,7 +236,7 @@ TEST(OrtModelTests, BPModelSmokeTest) {
     
     const char* modelPath = "identity.onnx";
 
-    Generator gen = createBPGenerator(ctx, commonSettings, modelPath);
+    Generator gen = createBPGenerator(ctx, commonSettings, BPGeneratorSettings{ modelPath });
     ASSERT_NE(gen, nullptr);
 
     std::vector<float> chunkData(commonSettings.resolution * commonSettings.resolution);
@@ -252,10 +252,10 @@ TEST(OrtModelTests, BPModelSmokeTest) {
 TEST(OrtModelTests, BPModelSeedDeterminism) {
     Context ctx = createContext(0);
     CommonSettings settings{42, 1.0f, 1.0f, 3, false};
-    Generator first = createBPGenerator(ctx, settings, "identity.onnx");
-    Generator second = createBPGenerator(ctx, settings, "identity.onnx");
+    Generator first = createBPGenerator(ctx, settings, BPGeneratorSettings{ "identity.onnx" });
+    Generator second = createBPGenerator(ctx, settings, BPGeneratorSettings{ "identity.onnx" });
     settings.seed += uint64_t{1} << 32;
-    Generator differentSeed = createBPGenerator(ctx, settings, "identity.onnx");
+    Generator differentSeed = createBPGenerator(ctx, settings, BPGeneratorSettings{ "identity.onnx" });
     ASSERT_NE(first, nullptr);
     ASSERT_NE(second, nullptr);
     ASSERT_NE(differentSeed, nullptr);
@@ -276,7 +276,7 @@ TEST(OrtModelTests, BPModelSeedDeterminism) {
 
     settings.seed = 42;
     settings.cacheable = true;
-    Generator cached = createBPGenerator(ctx, settings, "identity.onnx");
+    Generator cached = createBPGenerator(ctx, settings, BPGeneratorSettings{ "identity.onnx" });
     ASSERT_NE(cached, nullptr);
     getChunk(cached, -2, 3, actual.data());
     EXPECT_EQ(expected, actual);
@@ -294,7 +294,7 @@ TEST(OrtModelTests, BPModelSizeMismatchTest) {
     commonSettings.cacheable = true;
     
     const char* modelPath = "identity.onnx";
-    Generator gen = createBPGenerator(ctx, commonSettings, modelPath);
+    Generator gen = createBPGenerator(ctx, commonSettings, BPGeneratorSettings{ modelPath });
     ASSERT_EQ(gen, nullptr);
     destroyContext(ctx);
 }
@@ -302,9 +302,9 @@ TEST(OrtModelTests, BPModelSizeMismatchTest) {
 TEST(OrtModelTests, BPModelThreadedOutputMatchesSerial) {
     Context ctx = createContext(4);
     CommonSettings settings{42, 1.0f, 1.0f, 3, false};
-    Generator serial = createBPGenerator(ctx, settings, "identity.onnx");
+    Generator serial = createBPGenerator(ctx, settings, BPGeneratorSettings{ "identity.onnx" });
     settings.cacheable = true;
-    Generator threaded = createBPGenerator(ctx, settings, "identity.onnx");
+    Generator threaded = createBPGenerator(ctx, settings, BPGeneratorSettings{ "identity.onnx" });
     ASSERT_NE(serial, nullptr);
     ASSERT_NE(threaded, nullptr);
 

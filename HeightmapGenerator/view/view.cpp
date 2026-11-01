@@ -77,11 +77,27 @@ Generator createBPGenerator(int resolution, float amplitude, const char* modelPa
 	settings.amplitude = amplitude;
 	settings.resolution = resolution;
 	settings.cacheable = true;
-	Generator gen = createBPGenerator(ctx, settings, modelPath);
+	Generator gen = createBPGenerator(ctx, settings, BPGeneratorSettings{ modelPath });
 	if (!gen) {
 		printf("Failed to create BPGenerator with model path: %s\n", modelPath);
 	}
 	return gen;
+}
+
+Generator createModelErosion(int resolution, float amplitude, ModelErosionSettings modelErosionSettings) {
+	Generator baseGenerator = createSimple(createBrownianPerlinGenerator, 0.01f, 1.0f);
+	CommonSettings settings{};
+	settings.seed = 42;
+	settings.scale = 1.0f;
+	settings.amplitude = amplitude;
+	settings.resolution = resolution;
+	settings.cacheable = true;
+
+	Generator generator = createModelErosionGenerator(ctx, settings, modelErosionSettings);
+	if (!generator) {
+		printf("Failed to create ModelErosionGenerator with model path: %s\n", modelErosionSettings.modelPath);
+	}
+	return generator;
 }
 
 static std::vector<Sampler> samplers = {
@@ -91,6 +107,10 @@ static std::vector<Sampler> samplers = {
 	{createSimple(createPerlinGenerator, 0.05, 1), "Perlin Generator"},
 	{createSimple(createBrownianPerlinGenerator, 0.01, 1), "Brownian Perlin Generator"},
 	{createBPGenerator(512, 1, "best_step6126.onnx"), "BP Generator (best_step6126.onnx)"},
+	{createModelErosion(128, 1, {
+		.baseGeneratorImpl = createSimple(createBrownianPerlinGenerator, 0.01, 1),
+		.modelPath = "erosion_model.onnx"
+	}), "Model Erosion Generator"},
 	{createHydraulicErosion(0.01, 1, createSimple(createBrownianPerlinGenerator, 0.01, 1)), "Hydraulic Erosion Generator"},
 };
 

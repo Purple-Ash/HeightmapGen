@@ -53,6 +53,21 @@ public static class HeightmapGenAPI
         };
     }
 
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    public struct BPGeneratorSettings
+    {
+        [MarshalAs(UnmanagedType.LPUTF8Str)]
+        public string modelPath;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
+    public struct ModelErosionSettings
+    {
+        public IntPtr baseGeneratorImpl;
+        [MarshalAs(UnmanagedType.LPUTF8Str)]
+        public string modelPath;
+    }
+
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
     public static extern IntPtr smokeTest([MarshalAs(UnmanagedType.LPStr)] string data);
 
@@ -69,7 +84,10 @@ public static class HeightmapGenAPI
     public static extern IntPtr createBrownianPerlinGenerator(IntPtr ctx, CommonSettings commonSettings);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr createBPGenerator(IntPtr ctx, CommonSettings commonSettings, [MarshalAs(UnmanagedType.LPUTF8Str)] string modelPath);
+    public static extern IntPtr createBPGenerator(IntPtr ctx, CommonSettings commonSettings, BPGeneratorSettings bpSettings);
+
+    [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr createModelErosionGenerator(IntPtr ctx, CommonSettings settings, ModelErosionSettings modelErosionSettings);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr createHydraulicErosionGenerator(IntPtr ctx, CommonSettings commonSettings, HydraulicErosionSettings erosionSettings);
