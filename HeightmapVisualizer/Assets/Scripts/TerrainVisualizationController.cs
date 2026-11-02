@@ -18,6 +18,7 @@ public sealed class TerrainVisualizationController : MonoBehaviour
     public IReadOnlyList<TerrainVisualization> Visualizations => visualizations;
     public TerrainVisualization SelectedVisualization { get; private set; }
     public event Action SelectionChanged;
+    public bool KeyboardShortcutsEnabled { get; set; } = true;
 
     private static readonly Key[] NumberKeys =
     {
@@ -53,7 +54,7 @@ public sealed class TerrainVisualizationController : MonoBehaviour
     private void Update()
     {
         Keyboard keyboard = Keyboard.current;
-        if (keyboard == null) return;
+        if (!KeyboardShortcutsEnabled || keyboard == null) return;
         if (keyboard.ctrlKey.isPressed || keyboard.altKey.isPressed
             || keyboard.leftMetaKey.isPressed || keyboard.rightMetaKey.isPressed) return;
 
