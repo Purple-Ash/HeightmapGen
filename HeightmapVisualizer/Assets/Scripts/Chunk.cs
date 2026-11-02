@@ -11,6 +11,8 @@ public class Chunk : MonoBehaviour
 
     [SerializeField] private ColoringMode coloringMode = ColoringMode.Height;
 
+    private Mesh generatedMesh;
+
     Color colorByHeight(Vector3 vertex)
     {
         return new Color(vertex.y / 2, 1.0f - vertex.y / 2, 0.0f, 1.0f);
@@ -25,10 +27,15 @@ public class Chunk : MonoBehaviour
         };
     }
 
-    public void generateMesh(float[] newMesh, int sizeX, int sizeY, float scale, float amplitude)
+    public void generateMesh(float[] newMeshData, int sizeX, int sizeY, float scale, float amplitude)
     {
-        Mesh mesh = new Mesh();
-        mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+        Mesh newMesh = new Mesh();
+        if (generatedMesh != null)
+        {
+            Destroy(generatedMesh);
+        }
+        generatedMesh = newMesh;
+        newMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
 
         int gridX = sizeX;
         int gridY = sizeY;
@@ -45,7 +52,7 @@ public class Chunk : MonoBehaviour
             {
                 int index = i * gridY + j;
 
-                float height = (index < newMesh.Length) ? newMesh[index] : 0.0f;
+                float height = (index < newMeshData.Length) ? newMeshData[index] : 0.0f;
 
                 // Position vertices using the world scale factor
                 Vector3 newVertex = new Vector3(i * scale, height, j * scale);
@@ -75,22 +82,32 @@ public class Chunk : MonoBehaviour
             }
         }
 
-        mesh.vertices = vertices;
-        mesh.colors = colors;
-        mesh.uv = UVs;
-        mesh.triangles = triangles.ToArray();
+        newMesh.vertices = vertices;
+        newMesh.colors = colors;
+        newMesh.uv = UVs;
+        newMesh.triangles = triangles.ToArray();
 
-        mesh.RecalculateNormals();
-        mesh.RecalculateBounds();
+        newMesh.RecalculateNormals();
+        newMesh.RecalculateBounds();
 
         if (TryGetComponent<MeshFilter>(out var filter))
         {
-            filter.mesh = mesh;
+            filter.mesh = newMesh;
         }
 
         if (TryGetComponent<MeshCollider>(out var collider))
         {
-            collider.sharedMesh = mesh;
+            collider.sharedMesh = newMesh;
+        }
+    }
+
+
+    private void OnDestroy()
+    {
+
+        if (generatedMesh != null)
+        {
+            Destroy(generatedMesh);
         }
     }
 }
