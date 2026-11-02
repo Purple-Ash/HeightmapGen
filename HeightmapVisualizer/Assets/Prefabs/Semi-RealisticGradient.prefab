@@ -1,0 +1,150 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &5240625089909542214
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 7589713678555465757}
+  - component: {fileID: -2042809173685541308}
+  m_Layer: 0
+  m_Name: Semi-RealisticGradient
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &7589713678555465757
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5240625089909542214}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 877.9917, y: 401.708, z: -9.212452}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &-2042809173685541308
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5240625089909542214}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f475716f54184676811cad18c16e7f3b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  displayName: Realistic
+  icon: {fileID: 21300000, guid: 248452772bcef5b4da0d1560d191f4bf, type: 3}
+  surfaceMaterial: {fileID: 2100000, guid: 7d32d5bf20fa4d92810b6f60b0d928a3, type: 2}
+  slopeGradients:
+  - minimumSlope: 0
+    maximumSlope: 20
+    gradient:
+      serializedVersion: 2
+      key0: {r: 0.21535686, g: 0.3018868, b: 0.035599854, a: 1}
+      key1: {r: 0.23060243, g: 0.29874223, b: 0.103094175, a: 1}
+      key2: {r: 0.14221334, g: 0.254717, b: 0.13096298, a: 0}
+      key3: {r: 0.1461833, g: 0.2924528, b: 0.13105197, a: 0}
+      key4: {r: 0.2264151, g: 0.19437523, b: 0.18903525, a: 0}
+      key5: {r: 0.5566038, g: 0.54872733, b: 0.54872733, a: 0}
+      key6: {r: 0.736383, g: 0.7924528, b: 0.7924528, a: 0}
+      key7: {r: 0.85884655, g: 0.93811184, b: 0.9433962, a: 0}
+      ctime0: 1928
+      ctime1: 2891
+      ctime2: 17348
+      ctime3: 28142
+      ctime4: 43754
+      ctime5: 52043
+      ctime6: 59560
+      ctime7: 65535
+      atime0: 0
+      atime1: 65535
+      atime2: 0
+      atime3: 0
+      atime4: 0
+      atime5: 0
+      atime6: 0
+      atime7: 0
+      m_Mode: 0
+      m_ColorSpace: -1
+      m_NumColorKeys: 8
+      m_NumAlphaKeys: 2
+  - minimumSlope: 30
+    maximumSlope: 30
+    gradient:
+      serializedVersion: 2
+      key0: {r: 0.23584908, g: 0.23584908, b: 0.127937, a: 1}
+      key1: {r: 0.1967612, g: 0.20754719, b: 0.17328233, a: 1}
+      key2: {r: 0.18867922, g: 0.1699893, b: 0.15752934, a: 0}
+      key3: {r: 0.23584908, g: 0.19913672, b: 0.19913672, a: 0}
+      key4: {r: 0.5566038, g: 0.54872733, b: 0.54872733, a: 0}
+      key5: {r: 0.736383, g: 0.7924528, b: 0.7924528, a: 0}
+      key6: {r: 0.85884655, g: 0.93811184, b: 0.9433962, a: 0}
+      key7: {r: 0, g: 0, b: 0, a: 0}
+      ctime0: 1928
+      ctime1: 10794
+      ctime2: 22745
+      ctime3: 46067
+      ctime4: 52621
+      ctime5: 59367
+      ctime6: 65535
+      ctime7: 0
+      atime0: 0
+      atime1: 65535
+      atime2: 0
+      atime3: 0
+      atime4: 0
+      atime5: 0
+      atime6: 0
+      atime7: 0
+      m_Mode: 0
+      m_ColorSpace: -1
+      m_NumColorKeys: 7
+      m_NumAlphaKeys: 2
+  - minimumSlope: 50
+    maximumSlope: 90
+    gradient:
+      serializedVersion: 2
+      key0: {r: 0.23584908, g: 0.16824357, b: 0.14796193, a: 1}
+      key1: {r: 0.21698111, g: 0.20316392, b: 0.19548771, a: 1}
+      key2: {r: 0.22948559, g: 0.254717, b: 0.254717, a: 0}
+      key3: {r: 0.4692506, g: 0.52917516, b: 0.5377358, a: 0}
+      key4: {r: 0, g: 0, b: 0, a: 0}
+      key5: {r: 0, g: 0, b: 0, a: 0}
+      key6: {r: 0, g: 0, b: 0, a: 0}
+      key7: {r: 0, g: 0, b: 0, a: 0}
+      ctime0: 14264
+      ctime1: 39707
+      ctime2: 60524
+      ctime3: 65535
+      ctime4: 0
+      ctime5: 0
+      ctime6: 0
+      ctime7: 0
+      atime0: 0
+      atime1: 65535
+      atime2: 0
+      atime3: 0
+      atime4: 0
+      atime5: 0
+      atime6: 0
+      atime7: 0
+      m_Mode: 0
+      m_ColorSpace: -1
+      m_NumColorKeys: 4
+      m_NumAlphaKeys: 2
+  relativeToAmplitude: 1
+  heightRange: {x: 0, y: 1}
+  blendMode: 0
+  blendRichness: 0.35

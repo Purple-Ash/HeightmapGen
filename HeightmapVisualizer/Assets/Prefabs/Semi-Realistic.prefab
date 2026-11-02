@@ -44,9 +44,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9f631b44c037430784192663f305dd5f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  displayName: 
-  icon: {fileID: 0}
-  surfaceMaterial: {fileID: 0}
+  displayName: Semi-Realistic
+  icon: {fileID: 21300000, guid: 22f2882e8e7c97e4eb64f3c0e3baa770, type: 3}
+  surfaceMaterial: {fileID: 2100000, guid: c55b54dc04b75b14493fad54153af62e, type: 2}
   gradient:
     serializedVersion: 2
     key0: {r: 0.21535686, g: 0.3018868, b: 0.035599854, a: 1}
