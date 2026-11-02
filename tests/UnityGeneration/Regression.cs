@@ -62,7 +62,8 @@ static class Program
         Check.That(HeightmapGenAPI.LastWorkers == (cache ? workers : 0), "fallback created unused workers");
         Check.That(cache && workers > 0 ? HeightmapGenAPI.Peak == 3 : HeightmapGenAPI.Peak == 1, "wrong concurrency");
         if (!cache) Check.That(HeightmapGenAPI.Requests == 0, "uncached mode tried request/probe");
-        Check.That(terrain.AverageChunkGenerationSeconds * 3 == terrain.ElapsedGenerationSeconds,
+        Check.That(Math.Abs(terrain.AverageChunkGenerationSeconds * terrain.CompletedChunkCount
+            - terrain.ElapsedGenerationSeconds) < 1e-9,
             "average is not elapsed per completed chunk");
         double elapsed = terrain.ElapsedGenerationSeconds; Thread.Sleep(5);
         Check.That(elapsed == terrain.ElapsedGenerationSeconds, "finished timer still running");
