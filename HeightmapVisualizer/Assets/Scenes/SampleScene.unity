@@ -683,6 +683,7 @@ MonoBehaviour:
   seed: 0
   cacheable: 1
   generatorType: 0
+  workerAmount: 3
   erosionSeed: 0
   erosionIterations: 3
   erosionRadius: 5
@@ -725,6 +726,21 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3e79b1fd11bd4f8cb53d39e8ec5fe6b2, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  PanelWidth: 390
+  PanelMargin: 16
+  PanelPadding: 12
+  HeaderHeight: 25
+  HintHeight: 18
+  ApplyHeight: 36
+  RowHeight: 34
+  SectionHeight: 24
+  RowSpacing: 6
+  PanelColor: {r: 0.06421324, g: 0.08668565, b: 0.122641504, a: 0}
+  BackgroundColor: {r: 0.022472408, g: 0.034821104, b: 0.047169805, a: 0}
+  FieldColor: {r: 0.127937, g: 0.17110185, b: 0.23584908, a: 0}
+  AccentColor: {r: 0.18970275, g: 0.5031666, b: 0.8207547, a: 0}
+  TextColor: {r: 0.88309896, g: 0.9207124, b: 0.990566, a: 0}
+  MutedTextColor: {r: 0.6604664, g: 0.70502824, b: 0.7735849, a: 0}
 --- !u!4 &1513318998
 Transform:
   m_ObjectHideFlags: 0
