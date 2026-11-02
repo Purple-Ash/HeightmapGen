@@ -44,9 +44,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9f631b44c037430784192663f305dd5f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  displayName: 
-  icon: {fileID: 0}
-  surfaceMaterial: {fileID: 0}
+  displayName: Gradient
+  icon: {fileID: 21300000, guid: 30f23905549b60b44b51fd15034bf973, type: 3}
+  surfaceMaterial: {fileID: 2100000, guid: cdaee9107c11853438c2a939679c967f, type: 2}
   gradient:
     serializedVersion: 2
     key0: {r: 0, g: 1, b: 0, a: 1}

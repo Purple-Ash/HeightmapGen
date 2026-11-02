@@ -26,6 +26,7 @@ public sealed class TerrainVisualizationMenu : MonoBehaviour
     private float appliedIconScale = -1f;
     private float contentWidth;
     private Font font;
+    private Text heading;
 
     private void OnEnable()
     {
@@ -47,7 +48,7 @@ public sealed class TerrainVisualizationMenu : MonoBehaviour
         panel.anchorMin = panel.anchorMax = panel.pivot = Vector2.zero;
         panel.gameObject.AddComponent<Image>().color = panelColor;
 
-        Text heading = CreateText("Title", panel, "Visualization", 16);
+        heading = CreateText("Title", panel, "Visualisation", 16);
         heading.rectTransform.anchorMin = new Vector2(0f, 1f);
         heading.rectTransform.anchorMax = Vector2.one;
         heading.rectTransform.pivot = new Vector2(0f, 1f);
@@ -106,7 +107,8 @@ public sealed class TerrainVisualizationMenu : MonoBehaviour
         icon.color = preset.Icon != null ? Color.white : new Color(0.12f, 0.16f, 0.22f, 1f);
         icon.raycastTarget = false;
 
-        Text label = CreateText("Name", card, preset.DisplayName, 12);
+        string labelText = index < 10 ? $"{(index + 1) % 10}: {preset.DisplayName}" : preset.DisplayName;
+        Text label = CreateText("Name", card, labelText, 12);
         label.alignment = TextAnchor.MiddleCenter;
         label.rectTransform.anchorMin = label.rectTransform.anchorMax = label.rectTransform.pivot = Vector2.zero;
         label.rectTransform.anchoredPosition = new Vector2(4f, 4f);
@@ -137,13 +139,20 @@ public sealed class TerrainVisualizationMenu : MonoBehaviour
             contentWidth = Mathf.Max(0f, cards.Count * (CardWidth + Gap) - Gap);
             content.sizeDelta = new Vector2(contentWidth, CardHeight);
         }
-        float width = Mathf.Min(contentWidth + 24f, Mathf.Max(24f, Screen.width - margin.x * 2f));
+        float desiredWidth = Mathf.Max(contentWidth, heading != null ? heading.preferredWidth : 0f) + 24f;
+        float width = Mathf.Min(desiredWidth, Mathf.Max(24f, Screen.width - margin.x * 2f));
         panel.anchoredPosition = margin;
         panel.sizeDelta = new Vector2(width, CardHeight + 52f);
     }
 
     private void RefreshSelection()
     {
+        if (heading != null)
+        {
+            string displayName = controller.SelectedVisualization != null ? controller.SelectedVisualization.DisplayName : "None";
+            heading.text = $"Visualisation: {displayName}";
+            ResizePanel();
+        }
         foreach (var card in cards)
         {
             card.background.color = card.preset == controller.SelectedVisualization
@@ -182,5 +191,6 @@ public sealed class TerrainVisualizationMenu : MonoBehaviour
         }
         cards.Clear();
         panel = null;
+        heading = null;
     }
 }
