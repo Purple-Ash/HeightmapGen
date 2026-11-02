@@ -33,7 +33,7 @@ static class Program
         Set(terrain, "started", true);
         Set(terrain, "chunkObject", new GameObject());
         Set(terrain, "resolution", 8); Set(terrain, "chunkCount", new Vector2Int(chunks, 1));
-        Set(terrain, "generatorType", type); Set(terrain, "cacheable", cache); Set(terrain, "workerCount", workers);
+        Set(terrain, "generatorType", type); Set(terrain, "cacheable", cache); Set(terrain, "workerAmount", workers);
         terrain.Regenerate();
         return terrain;
     }
@@ -52,7 +52,7 @@ static class Program
         var terrain = New(type, cache, workers);
         Pump(terrain, () => HeightmapGenAPI.Calls >= (cache && workers > 0 ? 3 : 1));
         Set(terrain, "resolution", 3); Set(terrain, "scale", 7f); Set(terrain, "amplitude", 12f);
-        Set(terrain, "chunkCount", new Vector2Int(9, 9)); Set(terrain, "workerCount", 0);
+        Set(terrain, "chunkCount", new Vector2Int(9, 9)); Set(terrain, "workerAmount", 0);
         Finish(terrain);
         Check.That(Chunk.Meshes.Count == 3 && Chunk.Meshes.All(m => m.Size == 8 && m.Scale == 2 && m.Amplitude == 5),
             "settings snapshot changed while generating");
@@ -76,7 +76,7 @@ static class Program
         for (int i = 0; i < 10; i++)
         {
             Set(terrain, "resolution", i + 4); Set(terrain, "chunkCount", new Vector2Int(1, 1));
-            Set(terrain, "workerCount", 0);
+            Set(terrain, "workerAmount", 0);
             var clock = Stopwatch.StartNew();
             terrain.Regenerate(); terrain.Frame();
             Check.That(clock.ElapsedMilliseconds < 100, "restart blocked on old native jobs");
@@ -160,7 +160,7 @@ static class Program
     {
         var terrain = New();
         int commits = 0;
-        terrain.BeforeRegenerate += () => { commits++; Set(terrain, "resolution", 5); Set(terrain, "chunkCount", new Vector2Int(1, 1)); };
+        terrain.BeforeRegenerateChunks += () => { commits++; Set(terrain, "resolution", 5); Set(terrain, "chunkCount", new Vector2Int(1, 1)); };
         UnityEngine.InputSystem.Keyboard.current = new UnityEngine.InputSystem.Keyboard();
         UnityEngine.InputSystem.Keyboard.current[UnityEngine.InputSystem.Key.R].wasPressedThisFrame = true;
         Invoke(terrain, "Update"); UnityEngine.InputSystem.Keyboard.current = null;
@@ -180,7 +180,7 @@ static class Program
     {
         void Near(double actual, double expected, string label) => Check.That(Math.Abs(actual - expected) < 1e-9, label + ": " + actual);
         void Add(TerrainGen terrain, float[] heights, int size, float spacing) => typeof(TerrainGen)
-            .GetMethod("AccumulateTerrainStatistics", BindingFlags.Instance | BindingFlags.NonPublic)
+            .GetMethod("CollectTerrainStatistics", BindingFlags.Instance | BindingFlags.NonPublic)
             .Invoke(terrain, new object[] { heights, size, spacing });
 
         var flat = new TerrainGen(); Add(flat, new float[] { -4, -4, -4, -4 }, 2, 2);
