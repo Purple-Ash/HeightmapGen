@@ -44,6 +44,7 @@ public class TerrainGen : MonoBehaviour
 
     public static bool IsGenerating { get; private set; }
     public event Action BeforeRegenerateChunks;
+    public event Action<Chunk> ChunkGenerated;
     public bool HasHeightStatistics { get; private set; }
     public float HighestHeight { get; private set; }
     public double MaximumSlope { get; private set; }
@@ -274,7 +275,10 @@ public class TerrainGen : MonoBehaviour
         GameObject instance = Instantiate(prefab, chunkOffset, Quaternion.identity, transform);
         spawnedChunks.Add(instance);
         if (instance.TryGetComponent<Chunk>(out var chunk))
+        {
             chunk.generateMesh(result.Heights, settings.resolution, settings.resolution, spacing, settings.amplitude);
+            ChunkGenerated?.Invoke(chunk);
+        }
         CollectTerrainStatistics(result.Heights, settings.resolution, spacing);
         CompletedChunkCount++;
     }

@@ -12,6 +12,9 @@ public class Chunk : MonoBehaviour
     [SerializeField] private ColoringMode coloringMode = ColoringMode.Height;
 
     private Mesh generatedMesh;
+    private float generationAmplitude;
+    private TerrainVisualization activeVisualization;
+    private TerrainVisualizationContext visualizationContext;
 
     Color colorByHeight(Vector3 vertex)
     {
@@ -29,6 +32,9 @@ public class Chunk : MonoBehaviour
 
     public void generateMesh(float[] newMeshData, int sizeX, int sizeY, float scale, float amplitude)
     {
+        TerrainVisualization previousVisualization = activeVisualization;
+        ReleaseVisualization();
+        generationAmplitude = amplitude;
         Mesh newMesh = new Mesh();
         if (generatedMesh != null)
         {
@@ -99,11 +105,54 @@ public class Chunk : MonoBehaviour
         {
             collider.sharedMesh = newMesh;
         }
+        ApplyVisualization(previousVisualization);
+    }
+
+    public void ApplyVisualization(TerrainVisualization visualization)
+    {
+        ReleaseVisualization();
+        if (visualization == null || generatedMesh == null) return;
+
+        if (visualizationContext == null)
+        {
+            visualizationContext = new TerrainVisualizationContext(
+                generatedMesh, GetComponent<Renderer>(), transform, generationAmplitude);
+        }
+        activeVisualization = visualization;
+        try
+        {
+            visualization.Apply(visualizationContext);
+        }
+        catch (System.Exception exception)
+        {
+            Debug.LogException(exception, this);
+            ReleaseVisualization();
+        }
+    }
+
+    private void ReleaseVisualization()
+    {
+        if (visualizationContext == null) return;
+        try
+        {
+            if (activeVisualization != null) activeVisualization.Release(visualizationContext);
+        }
+        catch (System.Exception exception)
+        {
+            Debug.LogException(exception, this);
+        }
+        finally
+        {
+            visualizationContext.Reset();
+            visualizationContext = null;
+            activeVisualization = null;
+        }
     }
 
 
     private void OnDestroy()
     {
+        ReleaseVisualization();
 
         if (generatedMesh != null)
         {

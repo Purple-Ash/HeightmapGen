@@ -641,6 +641,8 @@ GameObject:
   m_Component:
   - component: {fileID: 1367002561}
   - component: {fileID: 1367002562}
+  - component: {fileID: 1367002564}
+  - component: {fileID: 1367002563}
   m_Layer: 0
   m_Name: Generator
   m_TagString: Untagged
@@ -697,6 +699,39 @@ MonoBehaviour:
   gravity: 1
   initialSpeed: 1
   initialWaterVolume: 1
+--- !u!114 &1367002563
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1367002560}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3fba10b245e14e8a9a36a25d81eab116, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  iconScale: 0.5
+  margin: {x: 16, y: 16}
+  panelColor: {r: 0.055, g: 0.075, b: 0.105, a: 0.94}
+  selectedColor: {r: 0.18, g: 0.65, b: 0.95, a: 1}
+--- !u!114 &1367002564
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1367002560}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 44fbc304a37d449bad6ae3eb7112fe97, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  visualizations:
+  - {fileID: -2916507379434435922, guid: a5874bdaef5a3ec4488a4de48e41cf2b, type: 3}
+  - {fileID: -2916507379434435922, guid: d16733aa4a2f21042ad7b8ea37f8e401, type: 3}
+  - {fileID: -2916507379434435922, guid: 8a527544af8ac504da1fb9aeed52eb95, type: 3}
+  defaultVisualization: 0
 --- !u!1 &1513318996
 GameObject:
   m_ObjectHideFlags: 0
