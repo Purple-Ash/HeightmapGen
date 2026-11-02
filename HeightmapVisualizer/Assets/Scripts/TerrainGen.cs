@@ -43,6 +43,7 @@ public class TerrainGen : MonoBehaviour
     [Min(0.0f)][SerializeField] private float initialWaterVolume = 1.0f;
 
     public static bool IsGenerating { get; private set; }
+    public bool KeyboardShortcutsEnabled { get; set; } = true;
     public event Action BeforeRegenerateChunks;
     public event Action<Chunk> ChunkGenerated;
     public bool HasHeightStatistics { get; private set; }
@@ -96,7 +97,7 @@ public class TerrainGen : MonoBehaviour
         }
 
         var keyboard = Keyboard.current;
-        if (keyboard != null && keyboard[Key.R].wasPressedThisFrame)
+        if (KeyboardShortcutsEnabled && keyboard != null && keyboard[Key.R].wasPressedThisFrame)
         {
             Regenerate();
         }

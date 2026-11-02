@@ -7,7 +7,7 @@
 3. Give them display names such as **Green–Red** and **Black–White**. In each component's context menu, choose **Use Green-Red Gradient** or **Use Black-White Gradient**. You can also edit the Gradient directly.
 4. Import each 100 × 150 PNG as **Sprite (2D and UI)** and assign it to the preset's **Icon** field. Without an icon, a plain card with the display name is shown.
 5. On the Generator's **Visualization Controller**, add both preset components to **Visualizations** in the desired left-to-right order. Drag a scene GameObject or prefab containing the component into each entry. **Default Visualization** is the zero-based index initially selected.
-6. Enter Play Mode. Press **Esc** to release the camera cursor, then click a card in the bottom-left panel. Cards are horizontal; drag or scroll when the row is wider than the screen.
+6. Enter Play Mode. Press **Esc** to release the camera cursor, then click a card in the bottom-left panel. Cards are horizontal; drag or scroll when the row is wider than the screen. Pressing **Esc** again while the cursor is released opens **Do you want to quit?**. **No** or another **Esc** closes the popup and keeps the cursor released; **Yes** quits the desktop build or stops Play Mode in the editor. The popup blocks clicks on underlying controls, camera movement, regeneration hotkeys, and visualization number shortcuts while open.
 
 The menu appears when at least one preset is assigned. It uses the scene's existing EventSystem, like the current settings panel. Existing chunks change immediately without regenerating; later chunks use the current selection. Selection survives Apply/R regeneration.
 
