@@ -1,7 +1,10 @@
 #include "HeightmapGenAPI.h"
 #include "HeightmapGenContext.h"
+#include "Blender.h"
 #include "Generators.h"
 #include <algorithm>
+#include <filesystem>
+#include <utility>
 
 HG_API const char* smokeTest(const char* data) {
 	return data;
@@ -55,6 +58,38 @@ HG_API Generator createHydraulicErosionGenerator(Context ctx, CommonSettings com
 	}
 }
 
+HG_API Blender createBlender(Context ctx, Generator sourceGenerator, int32_t radius) {
+	if (!ctx || !sourceGenerator) return nullptr;
+
+	auto source = ctx->getGenerator(sourceGenerator);
+	if (!source) return nullptr;
+
+	const auto& settings = source->getSettings();
+	if (settings.resolution < 2 || radius <= 0 ||
+		static_cast<int64_t>(radius) * 2 > settings.resolution) {
+		return nullptr;
+	}
+
+	try {
+		return new BlenderImpl(std::move(source), radius);
+	}
+	catch (const std::exception&) {
+		return nullptr;
+	}
+}
+
+HG_API void destroyBlender(Blender blender) {
+	delete blender;
+}
+
+HG_API void getBlendedChunk(Blender blender, int32_t x, int32_t y, float* buffer) {
+	if (blender) blender->getChunk({x, y}, buffer);
+}
+
+HG_API void clearBlenderCache(Blender blender) {
+	if (blender) blender->clearAllCache();
+}
+
 HG_API void destroyGenerator(Generator generator) {
 	if (generator) {
 		generator->getContext()->removeGenerator(generator);
@@ -62,7 +97,7 @@ HG_API void destroyGenerator(Generator generator) {
 }
 
 HG_API void getChunk(Generator generator, int32_t x, int32_t y, float* buffer) {
-	if (generator) generator->getChunk({ x, y }, buffer);
+	if (generator) generator->getChunk({ x, y }, buffer, true);
 }
 
 HG_API float getPoint(Generator generator, int32_t x, int32_t y) {
