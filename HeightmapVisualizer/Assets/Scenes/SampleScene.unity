@@ -570,8 +570,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   chunkObject: {fileID: 4964449792824702691, guid: 43111e6e73b10cb428e02d79e5ca80eb, type: 3}
-  chunkCount: {x: 1, y: 1}
-  resolution: 1024
+  chunkCount: {x: 3, y: 3}
+  resolution: 256
   scale: 0.5
   amplitude: 45
   seed: 0
