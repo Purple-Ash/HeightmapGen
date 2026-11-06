@@ -6,10 +6,7 @@
 #include <cmath>
 #include <gtest/gtest.h>
 #include <string>
-#include <type_traits>
 #include <vector>
-
-static_assert(!std::is_same_v<Blender, Generator>);
 
 TEST(CoreTests, HelloWorld)
 {
@@ -250,7 +247,7 @@ TEST(BlenderTests, BlendsCardinalEdgesAndFourWayCorners) {
 	CommonSettings settings{12, 1.0f, 1.0f, resolution, false};
 	Generator source = createRandomGenerator(ctx, settings);
 	ASSERT_NE(source, nullptr);
-	Blender blender = createBlender(ctx, source, 2);
+	Generator blender = createBlender(ctx, source, 2);
 	ASSERT_NE(blender, nullptr);
 
 	std::vector<float> center(resolution * resolution);
@@ -262,15 +259,16 @@ TEST(BlenderTests, BlendsCardinalEdgesAndFourWayCorners) {
 	std::vector<float> northWest(resolution * resolution);
 	std::vector<float> southWest(resolution * resolution);
 	std::vector<float> southEast(resolution * resolution);
-	getBlendedChunk(blender, 0, 0, center.data());
-	getBlendedChunk(blender, 1, 0, east.data());
-	getBlendedChunk(blender, 0, -1, north.data());
-	getBlendedChunk(blender, 1, -1, northEast.data());
-	getBlendedChunk(blender, -1, 0, west.data());
-	getBlendedChunk(blender, 0, 1, south.data());
-	getBlendedChunk(blender, -1, -1, northWest.data());
-	getBlendedChunk(blender, -1, 1, southWest.data());
-	getBlendedChunk(blender, 1, 1, southEast.data());
+	getChunk(blender, 0, 0, center.data());
+	getChunk(blender, 1, 0, east.data());
+	getChunk(blender, 0, -1, north.data());
+	getChunk(blender, 1, -1, northEast.data());
+	getChunk(blender, -1, 0, west.data());
+	getChunk(blender, 0, 1, south.data());
+	getChunk(blender, -1, -1, northWest.data());
+	getChunk(blender, -1, 1, southWest.data());
+	getChunk(blender, 1, 1, southEast.data());
+	EXPECT_FLOAT_EQ(getPoint(blender, 3, 4), center[pointIndex(3, 4, resolution)]);
 
 	auto expectSame = [](float a, float b) {
 		EXPECT_NEAR(a, b, 1e-5f);
@@ -307,7 +305,33 @@ TEST(BlenderTests, BlendsCardinalEdgesAndFourWayCorners) {
 		}
 	}
 
-	destroyBlender(blender);
+	destroyGenerator(blender);
+	destroyGenerator(source);
+	destroyContext(ctx);
+}
+
+TEST(BlenderTests, SupportsStandardGeneratorOperations) {
+	Context ctx = createContext(0);
+	CommonSettings settings{12, 1.0f, 1.0f, 8, true};
+	Generator source = createCoordinateGenerator(ctx, settings);
+	ASSERT_NE(source, nullptr);
+	Generator blender = createBlender(ctx, source, 2);
+	ASSERT_NE(blender, nullptr);
+
+	std::vector<float> output(64);
+	EXPECT_FALSE(probeChunk(blender, 2, -1, output.data()));
+	requestChunk(blender, 2, -1);
+	ASSERT_TRUE(probeChunk(blender, 2, -1, output.data()));
+
+	std::vector<float> fetched(64);
+	getChunk(blender, 2, -1, fetched.data());
+	EXPECT_EQ(output, fetched);
+	EXPECT_FLOAT_EQ(getPoint(blender, 17, -3), fetched[pointIndex(3, 4, 8)]);
+
+	clearAllCache(blender);
+	EXPECT_FALSE(probeChunk(blender, 2, -1, output.data()));
+
+	destroyGenerator(blender);
 	destroyGenerator(source);
 	destroyContext(ctx);
 }
@@ -316,27 +340,27 @@ TEST(BlenderTests, ReusesProgressiveMasksAndClearsTheirCache) {
 	Context ctx = createContext(0);
 	CommonSettings settings{0, 1.0f, 1.0f, 8, false};
 	CountingChunkGenerator source(ctx, settings);
-	Blender blender = createBlender(ctx, source.get(), 2);
+	Generator blender = createBlender(ctx, source.get(), 2);
 	ASSERT_NE(blender, nullptr);
 
 	std::vector<float> first(64);
 	std::vector<float> second(64);
 	std::vector<float> repeated(64);
-	getBlendedChunk(blender, 0, 0, first.data());
+	getChunk(blender, 0, 0, first.data());
 	EXPECT_EQ(source.generatedChunkCount(), 9);
 
-	getBlendedChunk(blender, 1, 0, second.data());
+	getChunk(blender, 1, 0, second.data());
 	EXPECT_EQ(source.generatedChunkCount(), 12);
-	getBlendedChunk(blender, 0, 0, repeated.data());
+	getChunk(blender, 0, 0, repeated.data());
 	EXPECT_EQ(source.generatedChunkCount(), 12);
 	EXPECT_EQ(first, repeated);
 
-	clearBlenderCache(blender);
-	getBlendedChunk(blender, 0, 0, repeated.data());
+	clearAllCache(blender);
+	getChunk(blender, 0, 0, repeated.data());
 	EXPECT_EQ(source.generatedChunkCount(), 21);
 	EXPECT_EQ(first, repeated);
 
-	destroyBlender(blender);
+	destroyGenerator(blender);
 	source.destroy();
 	destroyContext(ctx);
 }
@@ -345,18 +369,18 @@ TEST(BlenderTests, RetainsSourceAfterItsHandleIsDestroyed) {
 	Context ctx = createContext(0);
 	CommonSettings settings{0, 1.0f, 1.0f, 8, true};
 	CountingChunkGenerator source(ctx, settings);
-	Blender blender = createBlender(ctx, source.get(), 2);
+	Generator blender = createBlender(ctx, source.get(), 2);
 	ASSERT_NE(blender, nullptr);
 	source.destroy();
 
 	std::vector<float> output(64);
-	getBlendedChunk(blender, 0, 0, output.data());
+	getChunk(blender, 0, 0, output.data());
 	EXPECT_EQ(source.generatedChunkCount(), 9);
 	EXPECT_TRUE(std::all_of(output.begin(), output.end(), [](float height) {
 		return std::isfinite(height);
 	}));
 
-	destroyBlender(blender);
+	destroyGenerator(blender);
 	destroyContext(ctx);
 }
 

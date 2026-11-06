@@ -4,7 +4,7 @@
 #include <array>
 #include <unordered_set>
 
-class BlenderImpl {
+class BlenderImpl final : public GeneratorImpl {
 	enum class Edge {
 		North,
 		East,
@@ -35,7 +35,6 @@ class BlenderImpl {
 	};
 
 	std::shared_ptr<GeneratorImpl> source;
-	CommonSettings settings;
 	int32_t radius;
 	std::mutex maskMutex;
 	std::unordered_map<Vec2Int, ChunkData> maskCache;
@@ -49,6 +48,8 @@ class BlenderImpl {
 public:
 	BlenderImpl(std::shared_ptr<GeneratorImpl> source, int32_t radius);
 
-	void getChunk(Vec2Int chunkPos, float* buffer);
-	void clearAllCache();
+	void generateChunkData(Vec2Int chunkPos, float* buffer) override;
+	float getHeight(Vec2Int pos) override;
+	void clearAllCache() override;
+	bool isDeterministic() override;
 };

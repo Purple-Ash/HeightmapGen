@@ -38,8 +38,11 @@ BlenderImpl::BlenderImpl(
 	std::shared_ptr<GeneratorImpl> source,
 	int32_t radius
 )
-	: source(std::move(source)),
-	  settings(this->source ? this->source->getSettings() : CommonSettings{}),
+	: GeneratorImpl(
+		source ? source->getContext() : nullptr,
+		source ? source->getSettings() : CommonSettings{}
+	),
+	  source(std::move(source)),
 	  radius(radius) {
 	if (!this->source) {
 		throw std::invalid_argument("Blender requires a source generator");
@@ -199,7 +202,7 @@ void BlenderImpl::correctSharedBoundaries() {
 	}
 }
 
-void BlenderImpl::getChunk(Vec2Int chunkPos, float* buffer) {
+void BlenderImpl::generateChunkData(Vec2Int chunkPos, float* buffer) {
 	if (!buffer) {
 		return;
 	}
@@ -302,10 +305,24 @@ void BlenderImpl::getChunk(Vec2Int chunkPos, float* buffer) {
 	}
 }
 
+float BlenderImpl::getHeight(Vec2Int pos) {
+	const Vec2Int chunkPos = pointToChunk(pos);
+	const int32_t stride = std::max(settings.resolution - 1, 1);
+	const Vec2Int local = pos - chunkPos * stride;
+	std::vector<float> chunk(static_cast<size_t>(settings.resolution) * settings.resolution);
+	generateChunkData(chunkPos, chunk.data());
+	return chunk[static_cast<size_t>(local.x) * settings.resolution + local.y];
+}
+
 void BlenderImpl::clearAllCache() {
+	GeneratorImpl::clearAllCache();
 	{
 		std::lock_guard lock(maskMutex);
 		maskCache.clear();
 		processedCorners.clear();
 	}
+}
+
+bool BlenderImpl::isDeterministic() {
+	return source->isDeterministic();
 }

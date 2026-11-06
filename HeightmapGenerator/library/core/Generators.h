@@ -42,7 +42,7 @@ public:
 	bool probeChunk(Vec2Int pos, float* buffer);
 	bool probePoint(Vec2Int pos, float* point);
 	void cleanChunkFromCache(Vec2Int pos);
-	void clearAllCache();
+	virtual void clearAllCache();
 
 	virtual bool isDeterministic() = 0;
 

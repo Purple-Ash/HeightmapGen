@@ -58,7 +58,7 @@ HG_API Generator createHydraulicErosionGenerator(Context ctx, CommonSettings com
 	}
 }
 
-HG_API Blender createBlender(Context ctx, Generator sourceGenerator, int32_t radius) {
+HG_API Generator createBlender(Context ctx, Generator sourceGenerator, int32_t radius) {
 	if (!ctx || !sourceGenerator) return nullptr;
 
 	auto source = ctx->getGenerator(sourceGenerator);
@@ -71,23 +71,11 @@ HG_API Blender createBlender(Context ctx, Generator sourceGenerator, int32_t rad
 	}
 
 	try {
-		return new BlenderImpl(std::move(source), radius);
+		return ctx->registerGenerator(std::make_shared<BlenderImpl>(std::move(source), radius));
 	}
 	catch (const std::exception&) {
 		return nullptr;
 	}
-}
-
-HG_API void destroyBlender(Blender blender) {
-	delete blender;
-}
-
-HG_API void getBlendedChunk(Blender blender, int32_t x, int32_t y, float* buffer) {
-	if (blender) blender->getChunk({x, y}, buffer);
-}
-
-HG_API void clearBlenderCache(Blender blender) {
-	if (blender) blender->clearAllCache();
 }
 
 HG_API void destroyGenerator(Generator generator) {
