@@ -36,17 +36,19 @@ class BlenderImpl final : public GeneratorImpl {
 
 	std::shared_ptr<GeneratorImpl> source;
 	int32_t radius;
+	int32_t edgeSamplingRadius;
 	std::mutex maskMutex;
 	std::unordered_map<Vec2Int, ChunkData> maskCache;
 	std::unordered_set<Vec2Int> processedCorners;
 
 	ChunkData& getChunkData(Vec2Int pos);
 	void smoothEdge(ChunkData& target, ChunkData& neighbour, Edge edge);
+	float averageEdgeSamples(const ChunkData& target, const ChunkData& neighbour, Edge edge, int32_t alongEdge) const;
 	void correctCorner(const std::array<CornerSample, 4>& samples, Vec2Int vertex);
 	void correctSharedBoundaries();
 
 public:
-	BlenderImpl(std::shared_ptr<GeneratorImpl> source, int32_t radius);
+	BlenderImpl(std::shared_ptr<GeneratorImpl> source, int32_t radius, int32_t edgeSamplingRadius);
 
 	void generateChunkData(Vec2Int chunkPos, float* buffer) override;
 	float getHeight(Vec2Int pos) override;

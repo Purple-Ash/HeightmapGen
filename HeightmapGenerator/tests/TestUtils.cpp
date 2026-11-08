@@ -18,9 +18,12 @@ class CountingChunkGeneratorImpl final : public GeneratorImpl {
 
 	void generateChunkData(Vec2Int chunkPos, float* buffer) override {
 		++*generatedChunks;
-		const size_t chunkSize = static_cast<size_t>(settings.resolution) * settings.resolution;
-		const float height = static_cast<float>(chunkPos.x * 17 + chunkPos.y * 31);
-		std::fill_n(buffer, chunkSize, height);
+		for (int32_t x = 0; x < settings.resolution; ++x) {
+			for (int32_t y = 0; y < settings.resolution; ++y) {
+				buffer[x * settings.resolution + y] =
+					static_cast<float>(chunkPos.x * 17 + chunkPos.y * 31 + x * x + y * y);
+			}
+		}
 	}
 
 public:

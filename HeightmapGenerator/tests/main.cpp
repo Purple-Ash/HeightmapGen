@@ -310,6 +310,63 @@ TEST(BlenderTests, BlendsCardinalEdgesAndFourWayCorners) {
 	destroyContext(ctx);
 }
 
+TEST(BlenderTests, UsesConfiguredRadiusToChooseEdgeHeight) {
+	Context ctx = createContext(0);
+	constexpr int32_t resolution = 8;
+	constexpr int32_t samplingRadius = 3;
+	CommonSettings settings{12, 1.0f, 1.0f, resolution, true};
+	CountingChunkGenerator source(ctx, settings);
+
+	std::vector<float> rawLeft(resolution * resolution);
+	std::vector<float> rawRight(resolution * resolution);
+	std::vector<float> rawBottom(resolution * resolution);
+	std::vector<float> rawBottomRight(resolution * resolution);
+	getChunk(source.get(), 0, 0, rawLeft.data());
+	getChunk(source.get(), 1, 0, rawRight.data());
+	getChunk(source.get(), 0, 1, rawBottom.data());
+	getChunk(source.get(), 1, 1, rawBottomRight.data());
+
+	Generator blender = createBlender(ctx, source.get(), 2, samplingRadius);
+	ASSERT_NE(blender, nullptr);
+	std::vector<float> blendedLeft(resolution * resolution);
+	std::vector<float> blendedRight(resolution * resolution);
+	getChunk(blender, 0, 0, blendedLeft.data());
+	getChunk(blender, 1, 0, blendedRight.data());
+
+	const int32_t alongEdge = 3;
+	float expected = 0.0f;
+	for (int32_t depth = 0; depth < samplingRadius; ++depth) {
+		expected += rawLeft[pointIndex(resolution - depth - 1, alongEdge, resolution)];
+		expected += rawRight[pointIndex(depth, alongEdge, resolution)];
+	}
+	expected /= static_cast<float>(2 * samplingRadius);
+
+	EXPECT_NEAR(blendedLeft[pointIndex(resolution - 1, alongEdge, resolution)], expected, 1e-5f);
+	EXPECT_NEAR(blendedRight[pointIndex(0, alongEdge, resolution)], expected, 1e-5f);
+
+	const float edgeOnlyAverage = (
+		rawLeft[pointIndex(resolution - 1, alongEdge, resolution)] +
+		rawRight[pointIndex(0, alongEdge, resolution)]
+	) / 2.0f;
+	EXPECT_GT(std::abs(expected - edgeOnlyAverage), 1e-5f);
+
+	float expectedCorner = 0.0f;
+	for (int32_t x = 0; x < samplingRadius; ++x) {
+		for (int32_t y = 0; y < samplingRadius; ++y) {
+			expectedCorner += rawLeft[pointIndex(resolution - samplingRadius + x, resolution - samplingRadius + y, resolution)];
+			expectedCorner += rawRight[pointIndex(x, resolution - samplingRadius + y, resolution)];
+			expectedCorner += rawBottom[pointIndex(resolution - samplingRadius + x, y, resolution)];
+			expectedCorner += rawBottomRight[pointIndex(x, y, resolution)];
+		}
+	}
+	expectedCorner /= static_cast<float>(4 * samplingRadius * samplingRadius);
+	EXPECT_NEAR(blendedLeft[pointIndex(resolution - 1, resolution - 1, resolution)], expectedCorner, 1e-5f);
+
+	destroyGenerator(blender);
+	source.destroy();
+	destroyContext(ctx);
+}
+
 TEST(BlenderTests, SupportsStandardGeneratorOperations) {
 	Context ctx = createContext(0);
 	CommonSettings settings{12, 1.0f, 1.0f, 8, true};
@@ -394,6 +451,8 @@ TEST(BlenderTests, RejectsInvalidSourceAndRadius) {
 	EXPECT_EQ(createBlender(ctx, nullptr, 1), nullptr);
 	EXPECT_EQ(createBlender(ctx, source, 0), nullptr);
 	EXPECT_EQ(createBlender(ctx, source, 5), nullptr);
+	EXPECT_EQ(createBlender(ctx, source, 2, 0), nullptr);
+	EXPECT_EQ(createBlender(ctx, source, 2, 9), nullptr);
 	EXPECT_EQ(createBlender(otherContext, source, 1), nullptr);
 
 	destroyContext(otherContext);

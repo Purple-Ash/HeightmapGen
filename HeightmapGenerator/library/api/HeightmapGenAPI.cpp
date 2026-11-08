@@ -58,7 +58,12 @@ HG_API Generator createHydraulicErosionGenerator(Context ctx, CommonSettings com
 	}
 }
 
-HG_API Generator createBlender(Context ctx, Generator sourceGenerator, int32_t radius) {
+HG_API Generator createBlender(
+	Context ctx,
+	Generator sourceGenerator,
+	int32_t radius,
+	int32_t edgeSamplingRadius
+) {
 	if (!ctx || !sourceGenerator) return nullptr;
 
 	auto source = ctx->getGenerator(sourceGenerator);
@@ -66,12 +71,17 @@ HG_API Generator createBlender(Context ctx, Generator sourceGenerator, int32_t r
 
 	const auto& settings = source->getSettings();
 	if (settings.resolution < 2 || radius <= 0 ||
-		static_cast<int64_t>(radius) * 2 > settings.resolution) {
+		static_cast<int64_t>(radius) * 2 > settings.resolution ||
+		edgeSamplingRadius <= 0 || edgeSamplingRadius > settings.resolution) {
 		return nullptr;
 	}
 
 	try {
-		return ctx->registerGenerator(std::make_shared<BlenderImpl>(std::move(source), radius));
+		return ctx->registerGenerator(std::make_shared<BlenderImpl>(
+			std::move(source),
+			radius,
+			edgeSamplingRadius
+		));
 	}
 	catch (const std::exception&) {
 		return nullptr;

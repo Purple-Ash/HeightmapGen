@@ -54,7 +54,12 @@ extern "C" {
 	HG_API Generator createPerlinGenerator(Context ctx, CommonSettings commonSettings);
 	HG_API Generator createBrownianPerlinGenerator(Context ctx, CommonSettings commonSettings);
 	
-	HG_API Generator createBlender(Context ctx, Generator sourceGenerator, int32_t radius);
+	HG_API Generator createBlender(
+		Context ctx,
+		Generator sourceGenerator,
+		int32_t radius,
+		int32_t edgeSamplingRadius = 1
+	);
 	HG_API void destroyGenerator(Generator generator);
 
 	HG_API void getChunk(Generator generator, int32_t x, int32_t y, float* buffer);

@@ -36,20 +36,25 @@ float smoothstep(float t) {
 
 BlenderImpl::BlenderImpl(
 	std::shared_ptr<GeneratorImpl> source,
-	int32_t radius
+	int32_t radius,
+	int32_t edgeSamplingRadius
 )
 	: GeneratorImpl(
 		source ? source->getContext() : nullptr,
 		source ? source->getSettings() : CommonSettings{}
 	),
 	  source(std::move(source)),
-	  radius(radius) {
+	  radius(radius),
+	  edgeSamplingRadius(edgeSamplingRadius) {
 	if (!this->source) {
 		throw std::invalid_argument("Blender requires a source generator");
 	}
 	if (settings.resolution < 2 || radius <= 0 ||
 		static_cast<int64_t>(radius) * 2 > settings.resolution) {
 		throw std::invalid_argument("Blender radius must be positive and no greater than half the resolution");
+	}
+	if (edgeSamplingRadius <= 0 || edgeSamplingRadius > settings.resolution) {
+		throw std::invalid_argument("Blender edge-sampling radius must be positive and no greater than the resolution");
 	}
 }
 
@@ -65,6 +70,53 @@ BlenderImpl::ChunkData& BlenderImpl::getChunkData(Vec2Int pos) {
 		source->getChunk(pos, it->second.heights.data(), true);
 	}
 	return it->second;
+}
+
+float BlenderImpl::averageEdgeSamples(
+	const ChunkData& target,
+	const ChunkData& neighbour,
+	Edge edge,
+	int32_t alongEdge
+) const {
+	const int32_t resolution = settings.resolution;
+	float total = 0.0f;
+	for (int32_t depth = 0; depth < edgeSamplingRadius; ++depth) {
+		int32_t targetX;
+		int32_t targetY;
+		int32_t neighbourX;
+		int32_t neighbourY;
+
+		switch (edge) {
+		case Edge::North:
+			targetX = alongEdge;
+			targetY = depth;
+			neighbourX = alongEdge;
+			neighbourY = resolution - depth - 1;
+			break;
+		case Edge::East:
+			targetX = resolution - depth - 1;
+			targetY = alongEdge;
+			neighbourX = depth;
+			neighbourY = alongEdge;
+			break;
+		case Edge::South:
+			targetX = alongEdge;
+			targetY = resolution - depth - 1;
+			neighbourX = alongEdge;
+			neighbourY = depth;
+			break;
+		case Edge::West:
+			targetX = depth;
+			targetY = alongEdge;
+			neighbourX = resolution - depth - 1;
+			neighbourY = alongEdge;
+			break;
+		}
+
+		total += target.heights[targetX * resolution + targetY];
+		total += neighbour.heights[neighbourX * resolution + neighbourY];
+	}
+	return total / static_cast<float>(2 * edgeSamplingRadius);
 }
 
 void BlenderImpl::smoothEdge(ChunkData& target, ChunkData& neighbour, Edge edge) {
@@ -106,7 +158,9 @@ void BlenderImpl::smoothEdge(ChunkData& target, ChunkData& neighbour, Edge edge)
 			const float a = target.heights[targetX * resolution + targetY];
 			const float b = neighbour.heights[neighbourX * resolution + neighbourY];
 			const float weight = smoothstep(1.0f - static_cast<float>(j) / radius);
-			const float average = (a + b) / 2.0f;
+			const float average = j == 0
+				? averageEdgeSamples(target, neighbour, edge, i)
+				: (a + b) / 2.0f;
 			target.mask[maskIndex(targetX, targetY, resolution, radius)] += weight * (average - a);
 			neighbour.mask[maskIndex(neighbourX, neighbourY, resolution, radius)] += weight * (average - b);
 		}
@@ -133,9 +187,17 @@ void BlenderImpl::correctCorner(
 
 	float average = 0.0f;
 	for (const auto& sample : samples) {
-		average += sample.chunk->heights[sample.x * resolution + sample.y];
+		const int32_t firstX = sample.x == 0 ? 0 : resolution - edgeSamplingRadius;
+		const int32_t firstY = sample.y == 0 ? 0 : resolution - edgeSamplingRadius;
+		for (int32_t x = 0; x < edgeSamplingRadius; ++x) {
+			for (int32_t y = 0; y < edgeSamplingRadius; ++y) {
+				average += sample.chunk->heights[
+					(firstX + x) * resolution + firstY + y
+				];
+			}
+		}
 	}
-	average /= static_cast<float>(samples.size());
+	average /= static_cast<float>(samples.size() * edgeSamplingRadius * edgeSamplingRadius);
 
 	for (const auto& sample : samples) {
 		sample.chunk->mask[maskIndex(sample.x, sample.y, resolution, radius)] =
@@ -181,7 +243,7 @@ void BlenderImpl::correctSharedBoundaries() {
 				}
 				const float a = first.heights[firstX * resolution + firstY];
 				const float b = second.heights[secondX * resolution + secondY];
-				const float average = (a + b) / 2.0f;
+				const float average = averageEdgeSamples(first, second, edge, i);
 				first.mask[maskIndex(firstX, firstY, resolution, radius)] = average - a;
 				second.mask[maskIndex(secondX, secondY, resolution, radius)] = average - b;
 			}
