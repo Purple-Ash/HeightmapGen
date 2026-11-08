@@ -64,9 +64,7 @@ void ContextImpl::removeGenerator(Generator generator) {
 		generators.erase(it);
 	}
 
-	if (retained.use_count() == 1) {
-		retained->fastDrain();
-	}
+	retained->fastDrain();
 	retained->waitForAll();
 }
 
