@@ -11,6 +11,11 @@ public class Chunk : MonoBehaviour
 
     [SerializeField] private ColoringMode coloringMode = ColoringMode.Height;
 
+    private Mesh generatedMesh;
+    private float generationAmplitude;
+    private TerrainVisualization activeVisualization;
+    private TerrainVisualizationContext visualizationContext;
+
     Color colorByHeight(Vector3 vertex)
     {
         return new Color(vertex.y / 2, 1.0f - vertex.y / 2, 0.0f, 1.0f);
@@ -25,10 +30,18 @@ public class Chunk : MonoBehaviour
         };
     }
 
-    public void generateMesh(float[] newMesh, int sizeX, int sizeY, float scale, float amplitude)
+    public void generateMesh(float[] newMeshData, int sizeX, int sizeY, float scale, float amplitude)
     {
-        Mesh mesh = new Mesh();
-        mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+        TerrainVisualization previousVisualization = activeVisualization;
+        ReleaseVisualization();
+        generationAmplitude = amplitude;
+        Mesh newMesh = new Mesh();
+        if (generatedMesh != null)
+        {
+            Destroy(generatedMesh);
+        }
+        generatedMesh = newMesh;
+        newMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
 
         int gridX = sizeX;
         int gridY = sizeY;
@@ -45,7 +58,7 @@ public class Chunk : MonoBehaviour
             {
                 int index = i * gridY + j;
 
-                float height = (index < newMesh.Length) ? newMesh[index] : 0.0f;
+                float height = (index < newMeshData.Length) ? newMeshData[index] : 0.0f;
 
                 // Position vertices using the world scale factor
                 Vector3 newVertex = new Vector3(i * scale, height, j * scale);
@@ -75,22 +88,75 @@ public class Chunk : MonoBehaviour
             }
         }
 
-        mesh.vertices = vertices;
-        mesh.colors = colors;
-        mesh.uv = UVs;
-        mesh.triangles = triangles.ToArray();
+        newMesh.vertices = vertices;
+        newMesh.colors = colors;
+        newMesh.uv = UVs;
+        newMesh.triangles = triangles.ToArray();
 
-        mesh.RecalculateNormals();
-        mesh.RecalculateBounds();
+        newMesh.RecalculateNormals();
+        newMesh.RecalculateBounds();
 
         if (TryGetComponent<MeshFilter>(out var filter))
         {
-            filter.mesh = mesh;
+            filter.mesh = newMesh;
         }
 
         if (TryGetComponent<MeshCollider>(out var collider))
         {
-            collider.sharedMesh = mesh;
+            collider.sharedMesh = newMesh;
+        }
+        ApplyVisualization(previousVisualization);
+    }
+
+    public void ApplyVisualization(TerrainVisualization visualization)
+    {
+        ReleaseVisualization();
+        if (visualization == null || generatedMesh == null) return;
+
+        if (visualizationContext == null)
+        {
+            visualizationContext = new TerrainVisualizationContext(
+                generatedMesh, GetComponent<Renderer>(), transform, generationAmplitude);
+        }
+        activeVisualization = visualization;
+        try
+        {
+            visualization.Apply(visualizationContext);
+        }
+        catch (System.Exception exception)
+        {
+            Debug.LogException(exception, this);
+            ReleaseVisualization();
+        }
+    }
+
+    private void ReleaseVisualization()
+    {
+        if (visualizationContext == null) return;
+        try
+        {
+            if (activeVisualization != null) activeVisualization.Release(visualizationContext);
+        }
+        catch (System.Exception exception)
+        {
+            Debug.LogException(exception, this);
+        }
+        finally
+        {
+            visualizationContext.Reset();
+            visualizationContext = null;
+            activeVisualization = null;
+        }
+    }
+
+
+    private void OnDestroy()
+    {
+        ReleaseVisualization();
+
+        if (generatedMesh != null)
+        {
+            Destroy(generatedMesh);
         }
     }
 }

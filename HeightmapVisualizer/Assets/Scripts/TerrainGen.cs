@@ -3,15 +3,11 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using Stopwatch = System.Diagnostics.Stopwatch;
-using System.Threading.Tasks;
-using TMPro;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 public class TerrainGen : MonoBehaviour
 {
-    [SerializeField] private GameObject highestPoint;
-    [SerializeField] private GameObject lowestPoint;
     public enum GeneratorType
     {
         HydraulicErosion,
@@ -30,6 +26,9 @@ public class TerrainGen : MonoBehaviour
     [SerializeField] private ulong seed = 0;
     [SerializeField] private bool cacheable = true;
     [SerializeField] private GeneratorType generatorType = GeneratorType.HydraulicErosion;
+
+    [Header("Generation Scheduling")]
+    [Range(0, 64)][SerializeField] private int workerAmount = 3;
 
     [Header("BP Generator Settings")]
     [Tooltip("ONNX model path, either absolute or relative to StreamingAssets. Resolution must match the model output.")]
@@ -55,45 +54,102 @@ public class TerrainGen : MonoBehaviour
     [Min(0.0f)][SerializeField] private float initialWaterVolume = 1.0f;
 
     public static bool IsGenerating { get; private set; }
+    public bool KeyboardShortcutsEnabled { get; set; } = true;
+    public event Action BeforeRegenerateChunks;
+    public event Action<Chunk> ChunkGenerated;
+    public bool HasHeightStatistics { get; private set; }
+    public float HighestHeight { get; private set; }
+    public double MaximumSlope { get; private set; }
+    public double AverageHeight { get; private set; }
+    public double AverageSlope { get; private set; }
+    public float LowestHeight { get; private set; }
+    public bool HasSlopeStatistics => triangleCount > 0;
+    public double ElapsedGenerationSeconds => generationTimer.Elapsed.TotalSeconds;
+    public int CompletedChunkCount { get; private set; }
+    public double AverageChunkGenerationSeconds => CompletedChunkCount > 0 ? ElapsedGenerationSeconds / CompletedChunkCount : 0.0;
 
-    private IntPtr context = IntPtr.Zero;
-    private IntPtr generator = IntPtr.Zero;
-    private IntPtr baseGenerator = IntPtr.Zero;
+    private readonly Stopwatch generationTimer = new Stopwatch();
+    private double sampleHeightSum;
+    private long sampleCount;
+    private double triangleHeightSum;
+    private long triangleCount;
+    private double slopeSum;
 
     private readonly List<GameObject> spawnedChunks = new List<GameObject>();
     private Coroutine generationCoroutine;
-    private Task activeChunkTask;
+    private TerrainGenerationSession generationSession;
+    private int numberOfGeneration;
+    private bool started;
 
-    void Start()
+    private void Awake()
     {
-        generationCoroutine = StartCoroutine(Generate());
+#if UNITY_EDITOR
+        UnityEditor.AssemblyReloadEvents.beforeAssemblyReload += Shutdown;
+        UnityEditor.EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
+#endif
     }
 
-    void Update()
+    private void Start()
     {
-        var keyboard = Keyboard.current;
-        if (keyboard != null && keyboard[Key.R].wasPressedThisFrame)
+        started = true;
+        Regenerate();
+    }
+
+    private void OnEnable()
+    {
+        if (started) Regenerate();
+    }
+
+    private void Update()
+    {
+        if (generationCoroutine == null && generationSession != null && generationSession.Completion.IsCompleted)
         {
-            ReloadTerrain();
+            ReleaseCompletedSession();
+        }
+
+        var keyboard = Keyboard.current;
+        if (KeyboardShortcutsEnabled && keyboard != null && keyboard[Key.R].wasPressedThisFrame)
+        {
+            Regenerate();
         }
     }
 
-    private void ReloadTerrain()
+    public void Regenerate()
     {
+        BeforeRegenerateChunks?.Invoke();
+        StopGeneration();
+        ClearChunks();
+
+        HasHeightStatistics = false;
+        HighestHeight = 0f;
+        AverageHeight = 0.0;
+        LowestHeight = 0f;
+        MaximumSlope = 0.0;
+        AverageSlope = 0.0;
+        sampleHeightSum = 0.0;
+        sampleCount = 0;
+        slopeSum = 0.0;
+        triangleHeightSum = 0.0;
+        triangleCount = 0;
+        CompletedChunkCount = 0;
+
+        generationTimer.Reset();
+        IsGenerating = true;
+        generationCoroutine = StartCoroutine(Generate(numberOfGeneration));
+    }
+
+    private void StopGeneration()
+    {
+
+        numberOfGeneration++;
+        generationSession?.Cancel();
         if (generationCoroutine != null)
         {
             StopCoroutine(generationCoroutine);
             generationCoroutine = null;
         }
-
-        activeChunkTask?.Wait();
-        activeChunkTask = null;
+        generationTimer.Stop();
         IsGenerating = false;
-
-        ClearChunks();
-        DestroyGenerators();
-
-        generationCoroutine = StartCoroutine(Generate());
     }
 
     private void ClearChunks()
@@ -102,288 +158,245 @@ public class TerrainGen : MonoBehaviour
         {
             if (chunkGO != null)
             {
+                chunkGO.SetActive(false);
                 Destroy(chunkGO);
             }
         }
         spawnedChunks.Clear();
     }
 
-    private void DestroyGenerators()
+    private void ReleaseCompletedSession()
     {
-        if (generator != IntPtr.Zero)
-        {
-            HeightmapGenAPI.destroyGenerator(generator);
-            generator = IntPtr.Zero;
+        var finished = generationSession;
+        generationSession = null;
+        if (finished == null) return;
+        try { 
+            finished.Completion.GetAwaiter().GetResult(); 
         }
-
-        if (baseGenerator != IntPtr.Zero)
-        {
-            HeightmapGenAPI.destroyGenerator(baseGenerator);
-            baseGenerator = IntPtr.Zero;
+        catch (Exception exception) { 
+            Debug.LogException(exception); 
         }
-
-        if (context != IntPtr.Zero)
-        {
-            HeightmapGenAPI.destroyContext(context);
-            context = IntPtr.Zero;
+        finally { 
+            finished.Dispose(); 
         }
     }
 
-    private IEnumerator Generate()
+    private IEnumerator Generate(int version)
     {
-        IsGenerating = true;
-
-        string resolvedErosionModelPath = null;
-        if (generatorType == GeneratorType.ModelErosion)
-        {
-            if (!string.IsNullOrWhiteSpace(erosionModelPath))
-            {
-                resolvedErosionModelPath = Path.IsPathRooted(erosionModelPath)
-                    ? erosionModelPath
-                    : Path.Combine(Application.streamingAssetsPath, erosionModelPath);
-            }
-
-            if (resolvedErosionModelPath == null || !File.Exists(resolvedErosionModelPath))
-            {
-                Debug.LogError($"Model erosion ONNX model not found: {resolvedErosionModelPath ?? "(empty path)"}");
-                generationCoroutine = null;
-                IsGenerating = false;
-                yield break;
-            }
-        }
-
-        string resolvedBPModelPath = null;
-        if (generatorType == GeneratorType.BPGenerator)
-        {
-            if (!string.IsNullOrWhiteSpace(bpModelPath))
-            {
-                resolvedBPModelPath = Path.IsPathRooted(bpModelPath)
-                    ? bpModelPath
-                    : Path.Combine(Application.streamingAssetsPath, bpModelPath);
-            }
-
-            if (resolvedBPModelPath == null || !File.Exists(resolvedBPModelPath))
-            {
-                Debug.LogError($"BP Generator ONNX model not found: {resolvedBPModelPath ?? "(empty path)"}");
-                generationCoroutine = null;
-                IsGenerating = false;
-                yield break;
-            }
-        }
-
-        context = HeightmapGenAPI.createContext(3);
-        if (context == IntPtr.Zero)
-        {
-            Debug.LogError("Failed to create HeightmapGen context.");
-            generationCoroutine = null;
-            IsGenerating = false;
-            yield break;
-        }
-
+        Vector2Int generationChunkCount = chunkCount;
+        float generationScale = scale;
+        GameObject generationChunkObject = chunkObject;
+        GeneratorType generationType = generatorType;
         HeightmapGenAPI.CommonSettings commonSettings = new HeightmapGenAPI.CommonSettings
         {
             seed = seed,
-            scale = scale / 100f,
+            scale = scale /  100f,
             amplitude = amplitude,
             resolution = resolution,
             cacheable = cacheable
         };
 
-        switch (generatorType)
+        HeightmapGenAPI.HydraulicErosionSettings erosionSettings = new HeightmapGenAPI.HydraulicErosionSettings {
+            seed = erosionSeed,
+            numIterations = erosionIterations,
+            erosionRadius = erosionRadius,
+            maxDropletLifetime = maxDropletLifetime,
+            inertia = inertia,
+            sedimentCapacityFactor = sedimentCapacityFactor,
+            minSedimentCapacity = minSedimentCapacity,
+            erodeSpeed = erodeSpeed,
+            depositSpeed = depositSpeed,
+            evaporateSpeed = evaporateSpeed,
+            gravity = gravity,
+            initialSpeed = initialSpeed,
+            initialWaterVolume = initialWaterVolume
+        };
+
+        string resolvedBPModelPath = ResolveModelPath(bpModelPath);
+        string resolvedErosionModelPath = ResolveModelPath(erosionModelPath);
+        HeightmapGenAPI.BPGeneratorSettings bpSettings = new HeightmapGenAPI.BPGeneratorSettings
         {
-            case GeneratorType.ModelErosion:
-                var modelBaseSettings = commonSettings;
-                modelBaseSettings.amplitude = 1.0f;
-                baseGenerator = HeightmapGenAPI.createBrownianPerlinGenerator(context, modelBaseSettings);
-                generator = HeightmapGenAPI.createModelErosionGenerator(context, commonSettings, new HeightmapGenAPI.ModelErosionSettings
-                {
-                    baseGeneratorImpl = baseGenerator,
-                    modelPath = resolvedErosionModelPath
-                });
-                break;
-
-            case GeneratorType.Perlin:
-                generator = HeightmapGenAPI.createPerlinGenerator(context, commonSettings);
-                break;
-
-            case GeneratorType.BrownianNoise:
-                generator = HeightmapGenAPI.createBrownianPerlinGenerator(context, commonSettings);
-                break;
-
-            case GeneratorType.BPGenerator:
-                generator = HeightmapGenAPI.createBPGenerator(context, commonSettings, new HeightmapGenAPI.BPGeneratorSettings
-                {
-                    modelPath = resolvedBPModelPath
-                });
-                break;
-
-            case GeneratorType.HydraulicErosion:
-                HeightmapGenAPI.CommonSettings baseSettings = commonSettings;
-                baseSettings.amplitude = 1.0f;
-                baseGenerator = HeightmapGenAPI.createBrownianPerlinGenerator(context, baseSettings);
-                if (baseGenerator == IntPtr.Zero)
-                {
-                    Debug.LogError("Failed to create base generator for hydraulic erosion");
-                    generationCoroutine = null;
-                    IsGenerating = false;
-                    yield break;
-                }
-
-                HeightmapGenAPI.HydraulicErosionSettings erosionSettings = new HeightmapGenAPI.HydraulicErosionSettings
-                {
-                    seed = erosionSeed,
-                    numIterations = erosionIterations,
-                    erosionRadius = erosionRadius,
-                    maxDropletLifetime = maxDropletLifetime,
-                    inertia = inertia,
-                    sedimentCapacityFactor = sedimentCapacityFactor,
-                    minSedimentCapacity = minSedimentCapacity,
-                    erodeSpeed = erodeSpeed,
-                    depositSpeed = depositSpeed,
-                    evaporateSpeed = evaporateSpeed,
-                    gravity = gravity,
-                    initialSpeed = initialSpeed,
-                    initialWaterVolume = initialWaterVolume,
-                    baseGeneratorImpl = baseGenerator
-                };
-                generator = HeightmapGenAPI.createHydraulicErosionGenerator(context, commonSettings, erosionSettings);
-                break;
-        }
-
-        if (generator == IntPtr.Zero)
+            modelPath = resolvedBPModelPath
+        };
+        HeightmapGenAPI.ModelErosionSettings modelErosionSettings = new HeightmapGenAPI.ModelErosionSettings
         {
-            Debug.LogError(generatorType == GeneratorType.BPGenerator
-                ? $"Failed to create BP Generator from '{resolvedBPModelPath}'. Check that the model is valid and its output resolution matches {resolution}."
-                : "Failed to create Generator instance");
-            DestroyGenerators();
-            generationCoroutine = null;
-            IsGenerating = false;
-            yield break;
-        }
+            modelPath = resolvedErosionModelPath
+        };
 
-        var chunkStopwatches = new Stopwatch[Math.Max(0, chunkCount.x), Math.Max(0, chunkCount.y)];
-        for (int i = 0; i < chunkCount.x; i++)
+        int generationWorkerCount = workerAmount;
+
+        try
         {
-            for (int j = 0; j < chunkCount.y; j++)
+            yield return null;
+
+            while (generationSession != null && !generationSession.Completion.IsCompleted)
+                yield return null;
+            ReleaseCompletedSession();
+
+            if (generationChunkObject == null)
             {
-                int chunkX = i - chunkCount.x / 2;
-                int chunkY = j - chunkCount.y / 2;
-                chunkStopwatches[i, j] = Stopwatch.StartNew();
-                HeightmapGenAPI.requestChunk(generator, chunkX, chunkY);
+                Debug.LogError("No chunk object assigned!");
+                yield break;
             }
-        }
 
-        float highest = float.NegativeInfinity;
-        float lowest = float.PositiveInfinity;
-        bool hasSamples = false;
-
-        for (int i = 0; i < chunkCount.x; i++)
-        {
-            for (int j = 0; j < chunkCount.y; j++)
+            if (generationType == GeneratorType.BPGenerator &&
+                (resolvedBPModelPath == null || !File.Exists(resolvedBPModelPath)))
             {
-                int chunkX = i - chunkCount.x / 2;
-                int chunkY = j - chunkCount.y / 2;
-                int totalSamples = resolution * resolution;
-                float[] heightData = new float[totalSamples];
-                Stopwatch chunkStopwatch = chunkStopwatches[i, j];
+                Debug.LogError($"BP Generator ONNX model not found: {resolvedBPModelPath ?? "(empty path)"}");
+                yield break;
+            }
 
-                activeChunkTask = Task.Run(() =>
+            if (generationType == GeneratorType.ModelErosion &&
+                (resolvedErosionModelPath == null || !File.Exists(resolvedErosionModelPath)))
+            {
+                Debug.LogError($"Model erosion ONNX model not found: {resolvedErosionModelPath ?? "(empty path)"}");
+                yield break;
+            }
+
+            try
+            {
+                generationSession = new TerrainGenerationSession(generationType, commonSettings, erosionSettings,
+                    bpSettings, modelErosionSettings, generationChunkCount.x, generationChunkCount.y,
+                    generationWorkerCount);
+            }
+            catch (Exception exception)
+            {
+                Debug.LogException(exception);
+            }
+            if (generationSession == null) yield break;
+
+            generationTimer.Start();
+            var run = generationSession;
+            while (true)
+            {
+                if (run.TryTake(out var result))
                 {
-                        HeightmapGenAPI.getChunk(generator, chunkX, chunkY, heightData);
-                        chunkStopwatch.Stop();
-                });
-
-                while (!activeChunkTask.IsCompleted)
+                    ApplyResult(result, generationChunkObject, commonSettings, generationScale);
+                    yield return null;
+                }
+                else if (run.Completion.IsCompleted)
+                {
+                    if (run.TryTake(out var lastResult))
+                    {
+                        ApplyResult(lastResult, generationChunkObject, commonSettings, generationScale);
+                        yield return null;
+                        continue;
+                    }
+                    ReleaseCompletedSession();
+                    break;
+                }
+                else
                 {
                     yield return null;
                 }
+            }
+        }
+        finally
+        {
+            if (version == numberOfGeneration)
+            {
+                generationSession?.Cancel();
+                generationTimer.Stop();
 
-                bool faulted = activeChunkTask.IsFaulted;
-                Exception taskException = activeChunkTask.Exception;
-                activeChunkTask = null;
-                Debug.Log($"Chunk ({chunkX}, {chunkY}) completed in {chunkStopwatch.Elapsed.TotalSeconds:F2} seconds.", this);
+                IsGenerating = false;
+                generationCoroutine = null;
 
-                if (faulted)
+            }
+        }
+    }
+
+    private static string ResolveModelPath(string modelPath)
+    {
+        if (string.IsNullOrWhiteSpace(modelPath)) return null;
+        return Path.IsPathRooted(modelPath)
+            ? modelPath
+            : Path.Combine(Application.streamingAssetsPath, modelPath);
+    }
+
+    private void ApplyResult(TerrainGenerationSession.Result result, GameObject prefab,
+        HeightmapGenAPI.CommonSettings settings, float spacing)
+    {
+        Vector3 chunkOffset = new Vector3(result.X * (settings.resolution - 1) * spacing, 0,
+            result.Y * (settings.resolution - 1) * spacing);
+        GameObject instance = Instantiate(prefab, chunkOffset, Quaternion.identity, transform);
+        spawnedChunks.Add(instance);
+        if (instance.TryGetComponent<Chunk>(out var chunk))
+        {
+            chunk.generateMesh(result.Heights, settings.resolution, settings.resolution, spacing, settings.amplitude);
+            ChunkGenerated?.Invoke(chunk);
+        }
+        CollectTerrainStatistics(result.Heights, settings.resolution, spacing);
+        CompletedChunkCount++;
+    }
+
+    private void CollectTerrainStatistics(float[] heights, int size, float spacing)
+    {
+        foreach (float height in heights)
+        {
+            if (!HasHeightStatistics || height > HighestHeight) HighestHeight = height;
+            if (!HasHeightStatistics || height < LowestHeight) LowestHeight = height;
+            sampleHeightSum += height;
+            sampleCount++;
+            HasHeightStatistics = true;
+        }
+
+        if (spacing != 0f)
+        {
+            for (int x = 0; x < size - 1; x++)
+            {
+                for (int y = 0; y < size - 1; y++)
                 {
-                    Debug.LogException(taskException);
-                    continue;
+                    int index = x * size + y;
+                    double h00 = heights[index];
+                    double h01 = heights[index + 1];
+                    double h10 = heights[index + size];
+                    double h11 = heights[index + size + 1];
+                    AddTrianglesStatistics(h00, h01, h10, (h10 - h00) / spacing, (h01 - h00) / spacing);
+                    AddTrianglesStatistics(h10, h01, h11, (h11 - h01) / spacing, (h11 - h10) / spacing);
                 }
-
-                for (int k = 0; k < heightData.Length; k++)
-                {
-                    float h = heightData[k];
-                    if (h > highest) highest = h;
-                    if (h < lowest) lowest = h;
-                }
-                if (totalSamples > 0)
-                {
-                    hasSamples = true;
-                }
-
-                Vector3 worldOffset = new Vector3(
-                    chunkX * (resolution - 1) * scale,
-                    0,
-                    chunkY * (resolution - 1) * scale
-                );
-
-                GameObject instance = Instantiate(
-                    chunkObject,
-                    worldOffset,
-                    Quaternion.identity,
-                    transform
-                );
-                spawnedChunks.Add(instance);
-
-                if (instance.TryGetComponent<Chunk>(out var chunkComp))
-                {
-                    chunkComp.generateMesh(
-                        heightData,
-                        resolution,
-                        resolution,
-                        scale,
-                        amplitude
-                    );
-                }
-
-                if (hasSamples)
-                {
-                    UpdateHeightLabels(highest, lowest);
-                }
-
-                // Let this chunk actually render before starting the next one.
-                yield return null;
             }
         }
 
-        generationCoroutine = null;
-        IsGenerating = false;
+        AverageHeight = triangleCount > 0 ? triangleHeightSum / triangleCount
+            : sampleCount > 0 ? sampleHeightSum / sampleCount : 0.0;
+        AverageSlope = triangleCount > 0 ? slopeSum / triangleCount : 0.0;
     }
 
-    private void UpdateHeightLabels(float highest, float lowest)
+    private void AddTrianglesStatistics(double a, double b, double c, double gradientX, double gradientY)
     {
-        if (highestPoint != null)
-        {
-            highestPoint.GetComponent<TextMeshProUGUI>().text = highest.ToString("F2");
-        }
-
-        if (lowestPoint != null)
-        {
-            lowestPoint.GetComponent<TextMeshProUGUI>().text = lowest.ToString("F2");
-        }
+        double slope = Math.Atan(Math.Sqrt(gradientX * gradientX + gradientY * gradientY)) * (180.0 / Math.PI);
+        triangleHeightSum += (a + b + c) / 3.0;
+        slopeSum += slope;
+        triangleCount++;
+        if (slope > MaximumSlope) MaximumSlope = slope;
     }
+
+    private void OnDisable()
+    {
+        StopGeneration();
+        ClearChunks();
+    }
+
+    private void Shutdown()
+    {
+        StopGeneration();
+        ReleaseCompletedSession();
+        ClearChunks();
+    }
+
+#if UNITY_EDITOR
+    private void OnPlayModeStateChanged(UnityEditor.PlayModeStateChange state)
+    {
+        if (state == UnityEditor.PlayModeStateChange.ExitingPlayMode) Shutdown();
+    }
+#endif
 
     private void OnDestroy()
     {
-        if (generationCoroutine != null)
-        {
-            StopCoroutine(generationCoroutine);
-            generationCoroutine = null;
-        }
-
-        activeChunkTask?.Wait();
-        activeChunkTask = null;
-        IsGenerating = false;
-
-        DestroyGenerators();
+#if UNITY_EDITOR
+        UnityEditor.AssemblyReloadEvents.beforeAssemblyReload -= Shutdown;
+        UnityEditor.EditorApplication.playModeStateChanged -= OnPlayModeStateChanged;
+#endif
+        Shutdown();
     }
 }

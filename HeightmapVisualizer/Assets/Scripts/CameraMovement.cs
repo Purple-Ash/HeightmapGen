@@ -13,12 +13,15 @@ public class CameraMovement : MonoBehaviour
     private float pitch;
     private float yaw;
     private bool cursorLocked;
+    private QuitConfirmationDialog quitDialog;
 
     void Start()
     {
         yaw = transform.eulerAngles.y;
         pitch = transform.eulerAngles.x;
         SetCursorLocked(true);
+        quitDialog = GetComponent<QuitConfirmationDialog>();
+        if (quitDialog == null) quitDialog = gameObject.AddComponent<QuitConfirmationDialog>();
     }
 
     void Update()
@@ -29,9 +32,23 @@ public class CameraMovement : MonoBehaviour
             return;
         }
 
-        if (cursorLocked && Keyboard.current.escapeKey.wasPressedThisFrame)
+        if (quitDialog.IsOpen)
         {
-            SetCursorLocked(false);
+            if (Keyboard.current.escapeKey.wasPressedThisFrame) quitDialog.Hide();
+            return;
+        }
+
+        if (Keyboard.current.escapeKey.wasPressedThisFrame)
+        {
+            if (cursorLocked)
+            {
+                SetCursorLocked(false);
+            }
+            else
+            {
+                quitDialog.Show();
+            }
+            return;
         }
 
         if (!cursorLocked && Mouse.current.leftButton.wasPressedThisFrame)
@@ -83,6 +100,12 @@ public class CameraMovement : MonoBehaviour
         }
 
         transform.position += moveDir * currentSpeed * Time.deltaTime;
+    }
+
+    private void OnDisable()
+    {
+        if (quitDialog != null) quitDialog.Hide();
+        SetCursorLocked(false);
     }
 
     private void SetCursorLocked(bool isLocaked)
