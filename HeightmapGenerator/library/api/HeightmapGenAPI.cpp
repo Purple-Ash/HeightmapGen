@@ -3,7 +3,6 @@
 #include "Blender.h"
 #include "Generators.h"
 #include <algorithm>
-#include <filesystem>
 #include <utility>
 
 HG_API const char* smokeTest(const char* data) {
