@@ -582,6 +582,7 @@ MonoBehaviour:
   erosionIterations: 3
   erosionRadius: 5
   maxDropletLifetime: 30
+  padding: 5
   inertia: 0.219
   sedimentCapacityFactor: 4
   minSedimentCapacity: 0.04
