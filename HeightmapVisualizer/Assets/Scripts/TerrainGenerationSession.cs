@@ -44,14 +44,10 @@ internal sealed class TerrainGenerationSession : IDisposable
 
         if (type == TerrainGen.GeneratorType.HydraulicErosion)
         {
-            if (erosion.erosionRadius < 1 || erosion.numIterations < 0)
+            if (erosion.erosionRadius < 1 || erosion.padding < 0 || erosion.numIterations < 0)
             {
                 throw new ArgumentOutOfRangeException(nameof(erosion));
             }
-
-            int paddedSize = checked(settings.resolution + 2 * erosion.erosionRadius);
-            _ = checked(paddedSize * paddedSize);
-            _ = checked(samples * erosion.numIterations);
         }
 
         // Account for both queued managed results and cached native outputs

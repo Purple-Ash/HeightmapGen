@@ -169,6 +169,16 @@ static class Program
         Check.That(commits == 1 && Chunk.Meshes.Count == 1 && Chunk.Meshes[0].Size == 5, "R did not commit draft before snapshot");
         scenarios++;
     }
+    static void ErosionPadding()
+    {
+        var terrain = New(TerrainGen.GeneratorType.HydraulicErosion, workers: 0, chunks: 1);
+        Set(terrain, "padding", 6);
+        terrain.Regenerate();
+        Pump(terrain, () => HeightmapGenAPI.LastErosionPadding == 6);
+        Finish(terrain);
+        Check.That(Debug.Errors == 0, "erosion padding did not reach the native generator");
+        scenarios++;
+    }
     static void EmptyAndInvalid()
     {
         var terrain = New(chunks: 0); Finish(terrain);
@@ -216,7 +226,7 @@ static class Program
                     foreach (int workers in new[] { 0, 3 }) Snapshot(type, cache, workers);
             Restart(false); Restart(true); SlowCleanup(); BoundedQueueAndCancellation();
             ReadyChunksDoNotWaitForFirst(); Failure(false); Failure(true);
-            DisableEnableAndShutdown(); KeyboardAppliesDraft(); EmptyAndInvalid();
+            DisableEnableAndShutdown(); KeyboardAppliesDraft(); ErosionPadding(); EmptyAndInvalid();
         }
         StatisticsMath();
         Console.WriteLine($"PASS: {scenarios} generation/lifecycle scenarios and 6 analytic statistics cases.");
