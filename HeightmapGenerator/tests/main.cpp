@@ -422,12 +422,20 @@ TEST(BlenderTests, ReusesProgressiveMasksAndClearsTheirCache) {
 	destroyContext(ctx);
 }
 
-TEST(BlenderTests, RetainsSourceAfterItsHandleIsDestroyed) {
+TEST(BlenderTests, UsesCachedSourceAfterItsHandleIsDestroyed) {
 	Context ctx = createContext(0);
 	CommonSettings settings{0, 1.0f, 1.0f, 8, true};
 	CountingChunkGenerator source(ctx, settings);
 	Generator blender = createBlender(ctx, source.get(), 2);
 	ASSERT_NE(blender, nullptr);
+
+	std::vector<float> sourceChunk(64);
+	for (int32_t y = -1; y <= 1; ++y) {
+		for (int32_t x = -1; x <= 1; ++x) {
+			getChunk(source.get(), x, y, sourceChunk.data());
+		}
+	}
+	ASSERT_EQ(source.generatedChunkCount(), 9);
 	source.destroy();
 
 	std::vector<float> output(64);
@@ -436,6 +444,7 @@ TEST(BlenderTests, RetainsSourceAfterItsHandleIsDestroyed) {
 	EXPECT_TRUE(std::all_of(output.begin(), output.end(), [](float height) {
 		return std::isfinite(height);
 	}));
+	EXPECT_NE(output[pointIndex(3, 3, 8)], 0.0f);
 
 	destroyGenerator(blender);
 	destroyContext(ctx);
