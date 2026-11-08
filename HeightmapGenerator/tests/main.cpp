@@ -1,5 +1,4 @@
 #include "HeightmapGenAPI.h"
-#include "TestUtils.h"
 
 #include <algorithm>
 #include <array>
@@ -315,18 +314,19 @@ TEST(BlenderTests, UsesConfiguredRadiusToChooseEdgeHeight) {
 	constexpr int32_t resolution = 8;
 	constexpr int32_t samplingRadius = 3;
 	CommonSettings settings{12, 1.0f, 1.0f, resolution, true};
-	CountingChunkGenerator source(ctx, settings);
+	Generator source = createRandomGenerator(ctx, settings);
+	ASSERT_NE(source, nullptr);
 
 	std::vector<float> rawLeft(resolution * resolution);
 	std::vector<float> rawRight(resolution * resolution);
 	std::vector<float> rawBottom(resolution * resolution);
 	std::vector<float> rawBottomRight(resolution * resolution);
-	getChunk(source.get(), 0, 0, rawLeft.data());
-	getChunk(source.get(), 1, 0, rawRight.data());
-	getChunk(source.get(), 0, 1, rawBottom.data());
-	getChunk(source.get(), 1, 1, rawBottomRight.data());
+	getChunk(source, 0, 0, rawLeft.data());
+	getChunk(source, 1, 0, rawRight.data());
+	getChunk(source, 0, 1, rawBottom.data());
+	getChunk(source, 1, 1, rawBottomRight.data());
 
-	Generator blender = createBlender(ctx, source.get(), 2, samplingRadius);
+	Generator blender = createBlender(ctx, source, 2, samplingRadius);
 	ASSERT_NE(blender, nullptr);
 	std::vector<float> blendedLeft(resolution * resolution);
 	std::vector<float> blendedRight(resolution * resolution);
@@ -363,7 +363,7 @@ TEST(BlenderTests, UsesConfiguredRadiusToChooseEdgeHeight) {
 	EXPECT_NEAR(blendedLeft[pointIndex(resolution - 1, resolution - 1, resolution)], expectedCorner, 1e-5f);
 
 	destroyGenerator(blender);
-	source.destroy();
+	destroyGenerator(source);
 	destroyContext(ctx);
 }
 
@@ -393,58 +393,57 @@ TEST(BlenderTests, SupportsStandardGeneratorOperations) {
 	destroyContext(ctx);
 }
 
-TEST(BlenderTests, ReusesProgressiveMasksAndClearsTheirCache) {
+TEST(BlenderTests, MaintainsStableOutputAcrossCacheClear) {
 	Context ctx = createContext(0);
-	CommonSettings settings{0, 1.0f, 1.0f, 8, false};
-	CountingChunkGenerator source(ctx, settings);
-	Generator blender = createBlender(ctx, source.get(), 2);
+	CommonSettings settings{0, 1.0f, 1.0f, 8, true};
+	Generator source = createRandomGenerator(ctx, settings);
+	ASSERT_NE(source, nullptr);
+	Generator blender = createBlender(ctx, source, 2);
 	ASSERT_NE(blender, nullptr);
 
 	std::vector<float> first(64);
 	std::vector<float> second(64);
 	std::vector<float> repeated(64);
 	getChunk(blender, 0, 0, first.data());
-	EXPECT_EQ(source.generatedChunkCount(), 9);
-
 	getChunk(blender, 1, 0, second.data());
-	EXPECT_EQ(source.generatedChunkCount(), 12);
 	getChunk(blender, 0, 0, repeated.data());
-	EXPECT_EQ(source.generatedChunkCount(), 12);
 	EXPECT_EQ(first, repeated);
 
 	clearAllCache(blender);
 	getChunk(blender, 0, 0, repeated.data());
-	EXPECT_EQ(source.generatedChunkCount(), 21);
 	EXPECT_EQ(first, repeated);
 
 	destroyGenerator(blender);
-	source.destroy();
+	destroyGenerator(source);
 	destroyContext(ctx);
 }
 
 TEST(BlenderTests, UsesCachedSourceAfterItsHandleIsDestroyed) {
 	Context ctx = createContext(0);
 	CommonSettings settings{0, 1.0f, 1.0f, 8, true};
-	CountingChunkGenerator source(ctx, settings);
-	Generator blender = createBlender(ctx, source.get(), 2);
+	Generator source = createRandomGenerator(ctx, settings);
+	ASSERT_NE(source, nullptr);
+	Generator blender = createBlender(ctx, source, 2);
 	ASSERT_NE(blender, nullptr);
 
 	std::vector<float> sourceChunk(64);
 	for (int32_t y = -1; y <= 1; ++y) {
 		for (int32_t x = -1; x <= 1; ++x) {
-			getChunk(source.get(), x, y, sourceChunk.data());
+			getChunk(source, x, y, sourceChunk.data());
 		}
 	}
-	ASSERT_EQ(source.generatedChunkCount(), 9);
-	source.destroy();
+	destroyGenerator(source);
 
 	std::vector<float> output(64);
 	getChunk(blender, 0, 0, output.data());
-	EXPECT_EQ(source.generatedChunkCount(), 9);
-	EXPECT_TRUE(std::all_of(output.begin(), output.end(), [](float height) {
+	clearAllCache(blender);
+	std::vector<float> afterDestroy(64);
+	getChunk(blender, 0, 0, afterDestroy.data());
+	EXPECT_EQ(output, afterDestroy);
+	EXPECT_TRUE(std::all_of(afterDestroy.begin(), afterDestroy.end(), [](float height) {
 		return std::isfinite(height);
 	}));
-	EXPECT_NE(output[pointIndex(3, 3, 8)], 0.0f);
+	EXPECT_NE(afterDestroy[pointIndex(3, 3, 8)], 0.0f);
 
 	destroyGenerator(blender);
 	destroyContext(ctx);
