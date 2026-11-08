@@ -578,6 +578,8 @@ MonoBehaviour:
   cacheable: 1
   generatorType: 0
   workerAmount: 3
+  bpModelPath: best_step6126.onnx
+  erosionModelPath: erosion_model.onnx
   erosionSeed: 0
   erosionIterations: 3
   erosionRadius: 5

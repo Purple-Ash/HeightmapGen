@@ -15,6 +15,8 @@ namespace UnityEngine
     public class HeaderAttribute : Attribute { public HeaderAttribute(string value) { } }
     public class MinAttribute : Attribute { public MinAttribute(float value) { } }
     public class RangeAttribute : Attribute { public RangeAttribute(float min, float max) { } }
+    public class TooltipAttribute : Attribute { public TooltipAttribute(string value) { } }
+    public static class Application { public static string streamingAssetsPath { get; set; } = ""; }
     public struct Vector2Int { public int x, y; public Vector2Int(int x, int y) { this.x = x; this.y = y; } }
     public struct Vector3 { public float x, y, z; public Vector3(float x, float y, float z) { this.x = x; this.y = y; this.z = z; } }
     public struct Quaternion { public static Quaternion identity => new Quaternion(); }
