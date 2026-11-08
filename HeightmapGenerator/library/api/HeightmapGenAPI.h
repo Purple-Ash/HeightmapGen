@@ -29,6 +29,7 @@ struct HydraulicErosionSettings
 	int32_t numIterations = 1;
 	int32_t erosionRadius = 3;
 	int32_t maxDropletLifetime = 30;
+	int32_t padding = 5;
 	float inertia = 0.05f;
 	float sedimentCapacityFactor = 4.0f;
 	float minSedimentCapacity = 0.01f;

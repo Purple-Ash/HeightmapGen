@@ -161,8 +161,8 @@ HydraulicErosionGeneratorImpl::HydraulicErosionGeneratorImpl(ContextImpl* ctx, c
 void HydraulicErosionGeneratorImpl::generateChunkData(Vec2Int chunkPos, float* buffer) {
 	int32_t res = settings.resolution;
 	const int32_t radius = hydraulicErosionSettings.erosionRadius;
-	const int32_t paddedWidth = res + radius * 2;
-	const int32_t paddedHeight = res + radius * 2;
+	const int32_t paddedWidth = res + radius * 2 + hydraulicErosionSettings.padding;
+	const int32_t paddedHeight = res + radius * 2 + hydraulicErosionSettings.padding;
 	const int32_t outputSampleCount = res * res;
 	const int32_t paddedSampleCount = paddedWidth * paddedHeight;
 
