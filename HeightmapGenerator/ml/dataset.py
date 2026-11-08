@@ -3,8 +3,16 @@ import torch
 from torch.utils.data import Dataset
 from pathlib import Path
 
+def crop_center(t, h, w):
+    top = (t.shape[-2] - h) // 2
+    left = (t.shape[-1] - w) // 2
+    if top == 0 and left == 0:
+        return t
+    else:
+        return t[..., top:top + h, left:left + w]
+
 class HeightmapDataset(Dataset):
-    def __init__(self, dataset_dir: Path):
+    def __init__(self, dataset_dir: Path, context_radius: int):
         input_dir = dataset_dir / "in"
         output_dir = dataset_dir / "out"
         if not input_dir.exists() or not output_dir.exists():
@@ -22,6 +30,7 @@ class HeightmapDataset(Dataset):
         ]
         self.input_shape = None
         self.output_shape = None
+        self.context_radius = context_radius
 
         for input_path, output_path in self.dataset_files:
             input_shape = self._tensor_shape(input_path)
@@ -34,6 +43,15 @@ class HeightmapDataset(Dataset):
             elif input_shape != self.input_shape or output_shape != self.output_shape:
                 raise ValueError(f"File size mismatch: {input_path.name}")
 
+        self.model_input_shape = (
+            1,
+            self.output_shape[1] + 2 * context_radius,
+            self.output_shape[2] + 2 * context_radius,
+        )
+        if (self.input_shape[1] - self.output_shape[1] < 2 * context_radius or
+            self.input_shape[2] - self.output_shape[2] < 2 * context_radius):
+            raise ValueError("Not enough margin")
+    
         self.input_num_elements = math.prod(self.input_shape)
         self.output_num_elements = math.prod(self.output_shape)
 
@@ -55,4 +73,29 @@ class HeightmapDataset(Dataset):
         output_tensor = torch.from_file(str(output_path), size=self.output_num_elements, dtype=torch.float32)
         input_tensor = input_tensor.reshape(self.input_shape)
         output_tensor = output_tensor.reshape(self.output_shape)
+        input_tensor = crop_center(input_tensor, self.model_input_shape[1], self.model_input_shape[2])
+        return input_tensor, output_tensor
+
+class Augmented(Dataset):
+    def __init__(self, base_dataset):
+        self.base_dataset = base_dataset
+
+    def __len__(self):
+        return len(self.base_dataset)
+
+    def __getitem__(self, idx):
+        input_tensor, output_tensor = self.base_dataset[idx]
+
+        if torch.rand(1).item() > 0.5:
+            k = torch.randint(1, 4, (1,)).item()
+            input_tensor = torch.rot90(input_tensor, k, dims=[1, 2])
+            output_tensor = torch.rot90(output_tensor, k, dims=[1, 2])
+
+        if torch.rand(1).item() > 0.5:
+            input_tensor = torch.flip(input_tensor, dims=[2])
+            output_tensor = torch.flip(output_tensor, dims=[2])
+        if torch.rand(1).item() > 0.5:
+            input_tensor = torch.flip(input_tensor, dims=[1])
+            output_tensor = torch.flip(output_tensor, dims=[1])
+
         return input_tensor, output_tensor

@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 from dataset import HeightmapDataset
 import matplotlib.pyplot as plt
+from train import ErosionCNN
 
 parent_dir = Path(__file__).parent.resolve()
 repo_root = parent_dir.parent.parent
@@ -15,12 +16,12 @@ def main():
     print(f"Parent directory: {parent_dir}")
 
     session = onnxruntime.InferenceSession(
-        str(parent_dir / "models" / "eroded_heightmap.onnx"),
+        str(parent_dir / "models" / "erosion_model.onnx"),
         providers=['CPUExecutionProvider']
     )
 
     dataset_dir = parent_dir.parent.parent / "DatasetGenerator" / "dataset"
-    dataset = HeightmapDataset(Path(dataset_dir))
+    dataset = HeightmapDataset(Path(dataset_dir), context_radius=ErosionCNN.context_radius)
     print(f"Number of samples in dataset: {len(dataset)}")
 
     input_maps = []
