@@ -226,6 +226,94 @@ TEST(CoreTests, HydraulicErosionGeneratorTest) {
 	destroyContext(ctx);
 }
 
+TEST(CoreTests, BlenderGeneratorApiAndValidation) {
+	Context ctx = createContext(2);
+	ASSERT_NE(ctx, nullptr);
+
+	CommonSettings settings{ 1, 1.0f, 1.0f, 16, true };
+	Generator base = createCoordinateGenerator(ctx, settings);
+	ASSERT_NE(base, nullptr);
+
+	BlenderSettings blenderSettings{ 2, 2, base };
+	Generator blender = createBlenderGenerator(ctx, settings, blenderSettings);
+	ASSERT_NE(blender, nullptr);
+
+	const Vec2Int positions[] = { {0, 0}, {1, 0}, {0, 1}, {1, 1} };
+	for (const Vec2Int pos : positions) {
+		requestChunk(blender, pos.x, pos.y);
+	}
+	std::vector<float> chunk(settings.resolution * settings.resolution);
+	for (const Vec2Int pos : positions) {
+		getChunk(blender, pos.x, pos.y, chunk.data());
+		for (float height : chunk) {
+			EXPECT_TRUE(std::isfinite(height));
+		}
+	}
+
+	blenderSettings.blendingRadius = 0;
+	EXPECT_EQ(createBlenderGenerator(ctx, settings, blenderSettings), nullptr);
+
+	blenderSettings.blendingRadius = settings.resolution;
+	EXPECT_EQ(createBlenderGenerator(ctx, settings, blenderSettings), nullptr);
+
+	blenderSettings.blendingRadius = 2;
+	blenderSettings.edgeSamplingRadius = settings.resolution + 1;
+	EXPECT_EQ(createBlenderGenerator(ctx, settings, blenderSettings), nullptr);
+
+	CommonSettings mismatchedBaseSettings = settings;
+	mismatchedBaseSettings.resolution = settings.resolution - 1;
+	Generator mismatchedBase = createCoordinateGenerator(ctx, mismatchedBaseSettings);
+	ASSERT_NE(mismatchedBase, nullptr);
+	blenderSettings.edgeSamplingRadius = 2;
+	blenderSettings.baseGeneratorImpl = mismatchedBase;
+	EXPECT_EQ(createBlenderGenerator(ctx, settings, blenderSettings), nullptr);
+
+	destroyContext(ctx);
+}
+
+TEST(CoreTests, BlenderMaskCacheIsOrderIndependentAndCanBeRebuilt) {
+	Context ctx = createContext(2);
+	ASSERT_NE(ctx, nullptr);
+
+	CommonSettings settings{ 987, 1.0f, 1.0f, 16, true };
+	Generator base = createPerlinGenerator(ctx, settings);
+	ASSERT_NE(base, nullptr);
+
+	BlenderSettings blenderSettings{ 3, 4, base };
+	Generator first = createBlenderGenerator(ctx, settings, blenderSettings);
+	Generator second = createBlenderGenerator(ctx, settings, blenderSettings);
+	ASSERT_NE(first, nullptr);
+	ASSERT_NE(second, nullptr);
+
+	const Vec2Int positions[] = { {0, 0}, {1, 0}, {0, 1}, {1, 1}, {2, 1} };
+	std::vector<std::vector<float>> expected;
+	for (const Vec2Int pos : positions) {
+		std::vector<float> chunk(settings.resolution * settings.resolution);
+		getChunk(first, pos.x, pos.y, chunk.data());
+		expected.push_back(std::move(chunk));
+	}
+
+	for (size_t reverseIndex = std::size(positions); reverseIndex > 0; --reverseIndex) {
+		const size_t index = reverseIndex - 1;
+		const Vec2Int pos = positions[index];
+		std::vector<float> chunk(settings.resolution * settings.resolution);
+		getChunk(second, pos.x, pos.y, chunk.data());
+		ASSERT_EQ(chunk.size(), expected[index].size());
+		for (size_t sample = 0; sample < chunk.size(); ++sample) {
+			EXPECT_FLOAT_EQ(chunk[sample], expected[index][sample]);
+		}
+	}
+
+	std::vector<float> rebuilt(settings.resolution * settings.resolution);
+	cleanChunkFromCache(first, positions[2].x, positions[2].y);
+	getChunk(first, positions[2].x, positions[2].y, rebuilt.data());
+	for (size_t sample = 0; sample < rebuilt.size(); ++sample) {
+		EXPECT_FLOAT_EQ(rebuilt[sample], expected[2][sample]);
+	}
+
+	destroyContext(ctx);
+}
+
 int main(int argc, char** argv) { 
 	::testing::InitGoogleTest(&argc, argv);
 	int result = RUN_ALL_TESTS();

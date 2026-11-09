@@ -1,6 +1,7 @@
 #pragma once
 #include "HeightmapGenAPI.h"
 #include "HeightmapGenContext.h"
+#include <array>
 #include <vector>
 #include <unordered_map>
 #include <memory>
@@ -41,8 +42,8 @@ public:
 	void requestPoint(Vec2Int pos, bool forceSingleThreaded = false);
 	bool probeChunk(Vec2Int pos, float* buffer);
 	bool probePoint(Vec2Int pos, float* point);
-	void cleanChunkFromCache(Vec2Int pos);
-	void clearAllCache();
+	virtual void cleanChunkFromCache(Vec2Int pos);
+	virtual void clearAllCache();
 
 	virtual bool isDeterministic() = 0;
 
@@ -113,4 +114,33 @@ class HydraulicErosionGeneratorImpl : public GeneratorImpl {
 public:
 	HydraulicErosionGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings, const HydraulicErosionSettings& erosionSettings);
 	bool isDeterministic() override;
+};
+
+class BlenderImpl : public GeneratorImpl {
+private:
+	struct BlenderChunkData {
+		uint8_t flags = 0;
+		std::vector<float> mask{};
+		std::vector<float> chunk{};
+	};
+	BlenderSettings blenderSettings;
+	std::shared_ptr<GeneratorImpl> baseGenerator;
+	std::mutex blenderMutex;
+    std::unordered_map<Vec2Int, std::shared_ptr<BlenderChunkData>> maskCache;
+
+    std::shared_ptr<BlenderChunkData> getBlenderChunkData(Vec2Int pos);
+	void calculateCorrectionAlongEdge(std::shared_ptr<BlenderChunkData> target, std::shared_ptr<BlenderChunkData> neighbour, Edge edge);
+	void correctSharedCorner(std::shared_ptr<BlenderChunkData> northEast, std::shared_ptr<BlenderChunkData> southEast, std::shared_ptr<BlenderChunkData> southWest, std::shared_ptr<BlenderChunkData> northWest);   
+	void mergeChunkWithMask(std::shared_ptr<BlenderImpl::BlenderChunkData> chunkAndMask, float* buffer);
+
+protected:
+	float getHeight(Vec2Int pos) override;
+	void generateChunkData(Vec2Int chunkPos, float* buffer) override;
+
+public:
+	BlenderImpl(ContextImpl* ctx, const CommonSettings& settings, const BlenderSettings& blenderSettings);
+    	
+	bool isDeterministic() override;
+	void cleanChunkFromCache(Vec2Int pos) override;
+	void clearAllCache() override;
 };

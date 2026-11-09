@@ -87,3 +87,18 @@ namespace std {
 		}
 	};
 }
+
+
+enum class Edge {
+	North = 1,
+	East  = 2,
+	South = 4,
+	West  = 8
+};
+
+enum class Corner {
+	NorthEast = 16,
+	SouthEast = 32,
+	SouthWest = 64,
+	NorthWest = 128
+};

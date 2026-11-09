@@ -53,6 +53,14 @@ public static class HeightmapGenAPI
         };
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct BlenderSettings
+    {
+        public int blendingRadius;
+        public int edgeSamplingRadius;
+        public IntPtr baseGeneratorImpl;
+    }
+
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
     public static extern IntPtr smokeTest([MarshalAs(UnmanagedType.LPStr)] string data);
 
@@ -70,6 +78,9 @@ public static class HeightmapGenAPI
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr createHydraulicErosionGenerator(IntPtr ctx, CommonSettings commonSettings, HydraulicErosionSettings erosionSettings);
+
+    [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr createBlenderGenerator(IntPtr ctx, CommonSettings commonSettings, BlenderSettings blenderSettings);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
     public static extern void destroyGenerator(IntPtr generator);
