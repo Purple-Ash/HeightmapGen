@@ -1,7 +1,38 @@
 #include "Generators.h"
 
+#include <array>
+#include <bit>
+#include <cstddef>
 #include <stdexcept>
 
+struct EdgeLayout {
+    Edge opposite;
+    Vec2Int pointOrigin;
+    Vec2Int pointStep;
+    Vec2Int inwardStep;
+};
+
+constexpr std::array<EdgeLayout, 4> edgeLayoutsByBitIndex{{
+    { Edge::South, Vec2Int{ 0, 0 }, Vec2Int{ 1, 0 }, Vec2Int{ 0, 1 } },
+    { Edge::West, Vec2Int{ 1, 0 }, Vec2Int{ 0, 1 }, Vec2Int{ -1, 0 } },
+    { Edge::North, Vec2Int{ 0, 1 }, Vec2Int{ 1, 0 }, Vec2Int{ 0, -1 } },
+    { Edge::East, Vec2Int{ 0, 0 }, Vec2Int{ 0, 1 }, Vec2Int{ 1, 0 } }
+}};
+
+constexpr std::array<Vec2Int, 4> cornerOffsetsByBitIndex{{
+    Vec2Int{ 1, 0 },
+    Vec2Int{ 1, 1 },
+    Vec2Int{ 0, 1 },
+    Vec2Int{ 0, 0 }
+}};
+
+size_t edgeLayoutIndex(Edge edge) {
+    return std::countr_zero(static_cast<unsigned int>(edge));
+}
+
+size_t cornerOffsetIndex(Corner corner) {
+    return std::countr_zero(static_cast<unsigned int>(corner)) - 4;
+}
 
 bool isEdgeFinalized(Edge edge, uint8_t flags) {
 	return (flags & static_cast<uint8_t>(edge)) != 0;
@@ -71,59 +102,26 @@ int32_t maskSize(int32_t resolution, int32_t radius) {
 }
 
 Edge oppositeEdge(Edge edge) {
-    switch (edge) {
-        case Edge::North:
-            return Edge::South;
-        case Edge::East:
-            return Edge::West;
-        case Edge::South:
-            return Edge::North;
-        case Edge::West:
-            return Edge::East;
-    }
+    return edgeLayoutsByBitIndex[edgeLayoutIndex(edge)].opposite;
 }
 
 Vec2Int pointOnEdge(Edge edge, int32_t i, int32_t resolution) {
-    switch (edge) {
-        case Edge::North:
-            return Vec2Int{ i, 0 };
-        case Edge::East:
-            return Vec2Int{ resolution - 1, i };
-        case Edge::South:
-            return Vec2Int{ i, resolution - 1 };
-        case Edge::West:
-            return Vec2Int{ 0, i };
-    }
+    const EdgeLayout& layout = edgeLayoutsByBitIndex[edgeLayoutIndex(edge)];
+    return Vec2Int{
+        layout.pointOrigin.x * (resolution - 1) + layout.pointStep.x * i,
+        layout.pointOrigin.y * (resolution - 1) + layout.pointStep.y * i
+    };
 }
 
 Vec2Int cornerToChunkCoords(Corner corner, int32_t resolution) {
-    switch (corner) {
-        case Corner::NorthEast:
-            return Vec2Int{ resolution - 1, 0 };
-        case Corner::SouthEast:
-            return Vec2Int{ resolution - 1, resolution - 1 };
-        case Corner::SouthWest:
-            return Vec2Int{ 0, resolution - 1 };
-        case Corner::NorthWest:
-            return Vec2Int{ 0, 0 };
-    }
+    const Vec2Int offset = cornerOffsetsByBitIndex[cornerOffsetIndex(corner)];
+    return Vec2Int{ offset.x * (resolution - 1), offset.y * (resolution - 1) };
 }
 
 Vec2Int stepInward(Vec2Int point, Edge edge, int32_t depth) {
-    switch (edge) {
-        case Edge::North:
-            point.y += depth;
-            break;
-        case Edge::East:
-            point.x -= depth;
-            break;
-        case Edge::South:
-            point.y -= depth;
-            break;
-        case Edge::West:
-            point.x += depth;
-            break;
-    }
+    const Vec2Int step = edgeLayoutsByBitIndex[edgeLayoutIndex(edge)].inwardStep;
+    point.x += step.x * depth;
+    point.y += step.y * depth;
     return point;
 }
 
@@ -202,9 +200,8 @@ BlenderImpl::BlenderImpl(ContextImpl* ctx, const CommonSettings& commonSettings,
 		throw std::invalid_argument("Blender radius must be positive and no greater than half the resolution");
 	}
 	if (blenderSettings.edgeSamplingRadius <= 0 ||
-		blenderSettings.edgeSamplingRadius > (settings.resolution / 2) ||
-        blenderSettings.edgeSamplingRadius > blenderSettings.blendingRadius) {
-		throw std::invalid_argument("Blender edge-sampling radius must be positive and no greater than half the resolution and no greater than blendingRadius");
+		blenderSettings.edgeSamplingRadius > settings.resolution) {
+		throw std::invalid_argument("Blender edge-sampling radius must be positive and no greater than half the resolution");
 	}
 	if (baseGenerator->getSettings().resolution != settings.resolution) {
 		throw std::invalid_argument("Blender and base generator resolutions must match");
