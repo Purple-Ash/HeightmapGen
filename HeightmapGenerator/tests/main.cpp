@@ -322,6 +322,61 @@ TEST(BlenderTests, BlenderProducesMatchingSharedEdges) {
 	destroyContext(ctx);
 }
 
+TEST(BlenderTests, BlenderProducesMatchingSharedEdgesForIndependentChunks) {
+	constexpr int resolution = 16;
+	for (const int blendingRadius : { 1, 3, 7 }) {
+		Context ctx = createContext(0);
+		ASSERT_NE(ctx, nullptr);
+
+		CommonSettings settings{ 123, 1.0f, 1.0f, resolution, true };
+		Generator base = createRandomGenerator(ctx, settings);
+		ASSERT_NE(base, nullptr);
+		Generator blender = createBlenderGenerator(
+			ctx, settings, BlenderSettings{ blendingRadius, 1, base });
+		ASSERT_NE(blender, nullptr);
+		Generator reverseOrderBlender = createBlenderGenerator(
+			ctx, settings, BlenderSettings{ blendingRadius, 1, base });
+		ASSERT_NE(reverseOrderBlender, nullptr);
+
+		std::vector<float> southwest(resolution * resolution);
+		std::vector<float> southeast(resolution * resolution);
+		std::vector<float> northwest(resolution * resolution);
+		std::vector<float> northeast(resolution * resolution);
+		getChunk(blender, 0, 0, southwest.data());
+		getChunk(blender, 1, 0, southeast.data());
+		getChunk(blender, 0, 1, northwest.data());
+		getChunk(blender, 1, 1, northeast.data());
+
+		std::vector<float> reverseChunk(resolution * resolution);
+		for (const auto& pos : { std::array<int, 2>{ 1, 1 }, { 0, 1 }, { 1, 0 }, { 0, 0 } }) {
+			getChunk(reverseOrderBlender, pos[0], pos[1], reverseChunk.data());
+			const std::vector<float>* expected = nullptr;
+			if (pos == std::array<int, 2>{ 0, 0 }) expected = &southwest;
+			else if (pos == std::array<int, 2>{ 1, 0 }) expected = &southeast;
+			else if (pos == std::array<int, 2>{ 0, 1 }) expected = &northwest;
+			else expected = &northeast;
+			for (size_t sample = 0; sample < reverseChunk.size(); ++sample) {
+				EXPECT_FLOAT_EQ(reverseChunk[sample], (*expected)[sample])
+					<< "blendingRadius=" << blendingRadius << ", chunk=("
+					<< pos[0] << ", " << pos[1] << "), sample=" << sample;
+			}
+		}
+
+		for (int i = 0; i < resolution; ++i) {
+			EXPECT_FLOAT_EQ(southwest[(resolution - 1) * resolution + i], southeast[i])
+				<< "blendingRadius=" << blendingRadius << ", east edge index=" << i;
+			EXPECT_FLOAT_EQ(northwest[(resolution - 1) * resolution + i], northeast[i])
+				<< "blendingRadius=" << blendingRadius << ", east edge index=" << i;
+			EXPECT_FLOAT_EQ(southwest[i * resolution + resolution - 1], northwest[i * resolution])
+				<< "blendingRadius=" << blendingRadius << ", south edge index=" << i;
+			EXPECT_FLOAT_EQ(southeast[i * resolution + resolution - 1], northeast[i * resolution])
+				<< "blendingRadius=" << blendingRadius << ", south edge index=" << i;
+		}
+
+		destroyContext(ctx);
+	}
+}
+
 TEST(BlenderTests, BlenderProducesMatchingSharedCorners) {
 	constexpr int resolution = 16;
 	Context ctx = createContext(2);

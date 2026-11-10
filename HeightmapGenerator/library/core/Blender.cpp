@@ -12,14 +12,28 @@ struct EdgeLayout {
     Vec2Int inwardStep;
 };
 
-constexpr std::array<EdgeLayout, 4> edgeLayoutsByBitIndex{{
+std::array<EdgeLayout, 4> edgeLayoutsByBitIndex{{
     { Edge::South, Vec2Int{ 0, 0 }, Vec2Int{ 1, 0 }, Vec2Int{ 0, 1 } },
     { Edge::West, Vec2Int{ 1, 0 }, Vec2Int{ 0, 1 }, Vec2Int{ -1, 0 } },
     { Edge::North, Vec2Int{ 0, 1 }, Vec2Int{ 1, 0 }, Vec2Int{ 0, -1 } },
     { Edge::East, Vec2Int{ 0, 0 }, Vec2Int{ 0, 1 }, Vec2Int{ 1, 0 } }
 }};
 
-constexpr std::array<Vec2Int, 4> cornerOffsetsByBitIndex{{
+struct EdgeCornerLayout {
+    Corner firstStart;
+    Corner firstEnd;
+    Corner secondStart;
+    Corner secondEnd;
+};
+
+std::array<EdgeCornerLayout, 4> edgeCornerLayoutsByBitIndex{{
+    { Corner::NorthWest, Corner::NorthEast, Corner::SouthWest, Corner::SouthEast },
+    { Corner::NorthEast, Corner::SouthEast, Corner::NorthWest, Corner::SouthWest },
+    { Corner::SouthWest, Corner::SouthEast, Corner::NorthWest, Corner::NorthEast },
+    { Corner::NorthWest, Corner::SouthWest, Corner::NorthEast, Corner::SouthEast }
+}};
+
+std::array<Vec2Int, 4> cornerOffsetsByBitIndex{{
     Vec2Int{ 1, 0 },
     Vec2Int{ 1, 1 },
     Vec2Int{ 0, 1 },
@@ -106,7 +120,7 @@ Edge oppositeEdge(Edge edge) {
 }
 
 Vec2Int pointOnEdge(Edge edge, int32_t i, int32_t resolution) {
-    const EdgeLayout& layout = edgeLayoutsByBitIndex[edgeLayoutIndex(edge)];
+    EdgeLayout& layout = edgeLayoutsByBitIndex[edgeLayoutIndex(edge)];
     return Vec2Int{
         layout.pointOrigin.x * (resolution - 1) + layout.pointStep.x * i,
         layout.pointOrigin.y * (resolution - 1) + layout.pointStep.y * i
@@ -114,12 +128,12 @@ Vec2Int pointOnEdge(Edge edge, int32_t i, int32_t resolution) {
 }
 
 Vec2Int cornerToChunkCoords(Corner corner, int32_t resolution) {
-    const Vec2Int offset = cornerOffsetsByBitIndex[cornerOffsetIndex(corner)];
+    Vec2Int offset = cornerOffsetsByBitIndex[cornerOffsetIndex(corner)];
     return Vec2Int{ offset.x * (resolution - 1), offset.y * (resolution - 1) };
 }
 
 Vec2Int stepInward(Vec2Int point, Edge edge, int32_t depth) {
-    const Vec2Int step = edgeLayoutsByBitIndex[edgeLayoutIndex(edge)].inwardStep;
+    Vec2Int step = edgeLayoutsByBitIndex[edgeLayoutIndex(edge)].inwardStep;
     point.x += step.x * depth;
     point.y += step.y * depth;
     return point;
@@ -170,19 +184,22 @@ void divideCornerAreaBy2(std::vector<float>& mask, Corner corner, uint8_t flags,
     }
 }
 
-void standardizeSharedCornerPointHeights(std::vector<float>& northEast, std::vector<float>& southEast, std::vector<float>& southWest, std::vector<float>& northWest, 
-    int32_t resolution, int32_t radius) {
-    int32_t sw = chunkCoordsToMaskIdx(cornerToChunkCoords(Corner::SouthWest, resolution), resolution, radius);
-    int32_t nw = chunkCoordsToMaskIdx(cornerToChunkCoords(Corner::NorthWest, resolution), resolution, radius);
-    int32_t ne = chunkCoordsToMaskIdx(cornerToChunkCoords(Corner::NorthEast, resolution), resolution, radius);
-    int32_t se = chunkCoordsToMaskIdx(cornerToChunkCoords(Corner::SouthEast, resolution), resolution, radius);
+float sumCornerSamples(const std::vector<float>& chunk, Corner corner, int32_t resolution, int32_t radius) {
+    Vec2Int point = cornerToChunkCoords(corner, resolution);
+    point.x = (point.x == 0) ? 0 : resolution - radius;
+    point.y = (point.y == 0) ? 0 : resolution - radius;
+    float sum = 0.0f;
+    for (int32_t i = 0; i < radius; ++i) {
+        for (int32_t j = 0; j < radius; ++j) {
+            sum += chunk[(point.x + i) * resolution + point.y + j];
+        }
+    }
+    return sum;
+}
 
-    float avg = (northEast[sw] + southEast[nw] + southWest[ne] + northWest[se]) / 4.0f;
-
-    northEast[sw] = avg;
-    southEast[nw] = avg;
-    southWest[ne] = avg;
-    northWest[se] = avg;
+void setCornerCorrection(const std::vector<float>& chunk, std::vector<float>& mask, Corner corner, float sharedHeight, int32_t resolution, int32_t radius) {
+	Vec2Int point = cornerToChunkCoords(corner, resolution);
+	mask[chunkCoordsToMaskIdx(point, resolution, radius)] = sharedHeight - chunk[chunkCoordsToChunkIdx(point, resolution)];
 }
 
 
@@ -248,6 +265,30 @@ void SimpleBlenderImpl::calculateCorrectionAlongEdge(std::shared_ptr<SimpleBlend
     neighbour->flags = markEdgeFinalized(opposite, neighbour->flags);
 }
 
+void SimpleBlenderImpl::correctSharedBoundary(std::shared_ptr<BlenderChunkData> target, std::shared_ptr<BlenderChunkData> neighbour, Edge edge) {
+	int32_t resolution = settings.resolution;
+	int32_t radius = blenderSettings.blendingRadius;
+	Edge opposite = oppositeEdge(edge);
+	EdgeCornerLayout cornerLayout = edgeCornerLayoutsByBitIndex[edgeLayoutIndex(edge)];
+
+	for (int32_t i = 0; i < resolution; ++i) {
+		Corner firstCorner = (i == 0) ? cornerLayout.firstStart : cornerLayout.firstEnd;
+		Corner secondCorner = (i == 0) ? cornerLayout.secondStart : cornerLayout.secondEnd;
+		if ((i == 0 || i == resolution - 1) &&
+			isCornerFinalized(firstCorner, target->flags) &&
+			isCornerFinalized(secondCorner, neighbour->flags)) {
+			continue;
+		}
+
+		Vec2Int targetPoint = pointOnEdge(edge, i, resolution);
+		Vec2Int neighbourPoint = pointOnEdge(opposite, i, resolution);
+		float average = averageEdgeHeightOverRadius(target->chunk, neighbour->chunk, edge, i, resolution, blenderSettings.edgeSamplingRadius);
+
+		target->mask[chunkCoordsToMaskIdx(targetPoint, resolution, radius)] = average - target->chunk[chunkCoordsToChunkIdx(targetPoint, resolution)];
+		neighbour->mask[chunkCoordsToMaskIdx(neighbourPoint, resolution, radius)] = average - neighbour->chunk[chunkCoordsToChunkIdx(neighbourPoint, resolution)];
+	}
+}
+
 void SimpleBlenderImpl::correctSharedCorner(std::shared_ptr<BlenderChunkData> northEast, std::shared_ptr<BlenderChunkData> southEast, 
     std::shared_ptr<BlenderChunkData> southWest, std::shared_ptr<BlenderChunkData> northWest) {  
     // is the shared corner already finished?
@@ -257,15 +298,26 @@ void SimpleBlenderImpl::correctSharedCorner(std::shared_ptr<BlenderChunkData> no
         isCornerFinalized(Corner::SouthEast, northWest->flags))
         return;
 
-	const int32_t resolution = settings.resolution;
-	const int32_t radius = blenderSettings.blendingRadius;
+	int32_t resolution = settings.resolution;
+	int32_t radius = blenderSettings.blendingRadius;
+	int32_t sampleRadius = blenderSettings.edgeSamplingRadius;
 
     divideCornerAreaBy2(northEast->mask, Corner::SouthWest, northEast->flags, resolution, radius);
     divideCornerAreaBy2(southEast->mask, Corner::NorthWest, southEast->flags, resolution, radius);
     divideCornerAreaBy2(southWest->mask, Corner::NorthEast, southWest->flags, resolution, radius);
     divideCornerAreaBy2(northWest->mask, Corner::SouthEast, northWest->flags, resolution, radius);
 
-	standardizeSharedCornerPointHeights(northEast->mask, southEast->mask, southWest->mask, northWest->mask, resolution, radius);
+	float average =
+		(sumCornerSamples(northEast->chunk, Corner::SouthWest, resolution, sampleRadius) +
+		 sumCornerSamples(southEast->chunk, Corner::NorthWest, resolution, sampleRadius) +
+		 sumCornerSamples(southWest->chunk, Corner::NorthEast, resolution, sampleRadius) +
+		 sumCornerSamples(northWest->chunk, Corner::SouthEast, resolution, sampleRadius))
+        / static_cast<float>(4.0f * sampleRadius * sampleRadius);
+    
+	setCornerCorrection(northEast->chunk, northEast->mask, Corner::SouthWest, average, resolution, radius);
+	setCornerCorrection(southEast->chunk, southEast->mask, Corner::NorthWest, average, resolution, radius);
+	setCornerCorrection(southWest->chunk, southWest->mask, Corner::NorthEast, average, resolution, radius);
+	setCornerCorrection(northWest->chunk, northWest->mask, Corner::SouthEast, average, resolution, radius);
 
     northEast->flags = markCornerFinalized(Corner::SouthWest, northEast->flags);
     southEast->flags = markCornerFinalized(Corner::NorthWest, southEast->flags);
@@ -273,7 +325,7 @@ void SimpleBlenderImpl::correctSharedCorner(std::shared_ptr<BlenderChunkData> no
     northWest->flags = markCornerFinalized(Corner::SouthEast, northWest->flags);
 }
 
-void SimpleBlenderImpl::mergeChunkWithMask(std::shared_ptr<SimpleBlenderImpl::BlenderChunkData> target, float* buffer) {
+void SimpleBlenderImpl::applyCorrectionsToChunk(std::shared_ptr<SimpleBlenderImpl::BlenderChunkData> target, float* buffer) {
     int32_t resolution = settings.resolution;
     int32_t radius = blenderSettings.blendingRadius;
 
@@ -327,22 +379,28 @@ void SimpleBlenderImpl::generateChunkData(Vec2Int pos, float *buffer) {
     calculateCorrectionAlongEdge(target, south, Edge::South);
     calculateCorrectionAlongEdge(target, west,  Edge::West);
 
-
+    // radius x radius corners of each chunk have overlapping influence from 2 adjacent edges
 	correctSharedCorner(northeast, east, target, north);
 	correctSharedCorner(east, southeast, south, target);
 	correctSharedCorner(target, south, southwest, west);
 	correctSharedCorner(north, target, west, northwest);
 
-    
-	mergeChunkWithMask(target, buffer);
+    // after corner correction is applied the edges may no longer match as different chunks will apply different corrections
+	correctSharedBoundary(target, north, Edge::North);
+	correctSharedBoundary(target, east, Edge::East);
+	correctSharedBoundary(target, south, Edge::South);
+	correctSharedBoundary(target, west, Edge::West);
+
+    // finalized chunk will be stored in Blender' main cache
+	applyCorrectionsToChunk(target, buffer);
 }
 
 float SimpleBlenderImpl::getHeight(Vec2Int pos) {
-	const Vec2Int chunkPos = pointToChunk(pos);
-	const Vec2Int localPos = pos - chunkPos * std::max(settings.resolution - 1, 1);
-	std::vector<float> chunk(static_cast<size_t>(settings.resolution) * settings.resolution);
+	Vec2Int chunkPos = pointToChunk(pos);
+	Vec2Int localPos = pos - chunkPos * std::max(settings.resolution - 1, 1);
+	std::vector<float> chunk(settings.resolution * settings.resolution);
 	generateChunkData(chunkPos, chunk.data());
-	return chunk[static_cast<size_t>(localPos.x) * settings.resolution + localPos.y];
+	return chunk[localPos.x * settings.resolution + localPos.y];
 }
 
 // Blender itself is deterministic, but the baseGenerator might not be
