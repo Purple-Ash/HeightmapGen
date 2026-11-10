@@ -59,7 +59,7 @@ HG_API Generator createBlenderGenerator(Context ctx, CommonSettings commonSettin
 	if (!ctx || !blenderSettings.baseGeneratorImpl) return nullptr;
 	if (!ctx->getGenerator(blenderSettings.baseGeneratorImpl)) return nullptr;
 	try {
-		return ctx->registerGenerator(std::make_shared<BlenderImpl>(ctx, commonSettings, blenderSettings));
+		return ctx->registerGenerator(std::make_shared<SimpleBlenderImpl>(ctx, commonSettings, blenderSettings));
 	}
 	catch (const std::exception&) {
 		return nullptr;

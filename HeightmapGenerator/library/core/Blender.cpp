@@ -186,7 +186,7 @@ void standardizeSharedCornerPointHeights(std::vector<float>& northEast, std::vec
 }
 
 
-BlenderImpl::BlenderImpl(ContextImpl* ctx, const CommonSettings& commonSettings, const BlenderSettings& blenderSettings)
+SimpleBlenderImpl::SimpleBlenderImpl(ContextImpl* ctx, const CommonSettings& commonSettings, const BlenderSettings& blenderSettings)
 	: GeneratorImpl(ctx, commonSettings), blenderSettings(blenderSettings),
 	  baseGenerator(ctx->getGenerator(blenderSettings.baseGeneratorImpl)) {
 	if (!baseGenerator) {
@@ -208,7 +208,7 @@ BlenderImpl::BlenderImpl(ContextImpl* ctx, const CommonSettings& commonSettings,
 	}
 }
 
-std::shared_ptr<BlenderImpl::BlenderChunkData> BlenderImpl::getBlenderChunkData(Vec2Int pos) {
+std::shared_ptr<SimpleBlenderImpl::BlenderChunkData> SimpleBlenderImpl::getBlenderChunkData(Vec2Int pos) {
     auto it = maskCache.find(pos);
     if (it != maskCache.end()) {
 		return it->second;
@@ -223,7 +223,7 @@ std::shared_ptr<BlenderImpl::BlenderChunkData> BlenderImpl::getBlenderChunkData(
     return data;
 }
 
-void BlenderImpl::calculateCorrectionAlongEdge(std::shared_ptr<BlenderImpl::BlenderChunkData> target, std::shared_ptr<BlenderImpl::BlenderChunkData> neighbour, Edge edge) {
+void SimpleBlenderImpl::calculateCorrectionAlongEdge(std::shared_ptr<SimpleBlenderImpl::BlenderChunkData> target, std::shared_ptr<SimpleBlenderImpl::BlenderChunkData> neighbour, Edge edge) {
     Edge opposite = oppositeEdge(edge);
 	int32_t resolution = settings.resolution;
     int32_t radius = blenderSettings.blendingRadius;
@@ -248,7 +248,7 @@ void BlenderImpl::calculateCorrectionAlongEdge(std::shared_ptr<BlenderImpl::Blen
     neighbour->flags = markEdgeFinalized(opposite, neighbour->flags);
 }
 
-void BlenderImpl::correctSharedCorner(std::shared_ptr<BlenderChunkData> northEast, std::shared_ptr<BlenderChunkData> southEast, 
+void SimpleBlenderImpl::correctSharedCorner(std::shared_ptr<BlenderChunkData> northEast, std::shared_ptr<BlenderChunkData> southEast, 
     std::shared_ptr<BlenderChunkData> southWest, std::shared_ptr<BlenderChunkData> northWest) {  
     // is the shared corner already finished?
     if (isCornerFinalized(Corner::SouthWest, northEast->flags) &&
@@ -273,7 +273,7 @@ void BlenderImpl::correctSharedCorner(std::shared_ptr<BlenderChunkData> northEas
     northWest->flags = markCornerFinalized(Corner::SouthEast, northWest->flags);
 }
 
-void BlenderImpl::mergeChunkWithMask(std::shared_ptr<BlenderImpl::BlenderChunkData> target, float* buffer) {
+void SimpleBlenderImpl::mergeChunkWithMask(std::shared_ptr<SimpleBlenderImpl::BlenderChunkData> target, float* buffer) {
     int32_t resolution = settings.resolution;
     int32_t radius = blenderSettings.blendingRadius;
 
@@ -292,7 +292,7 @@ void BlenderImpl::mergeChunkWithMask(std::shared_ptr<BlenderImpl::BlenderChunkDa
     }
 }
 
-void BlenderImpl::generateChunkData(Vec2Int pos, float *buffer) {
+void SimpleBlenderImpl::generateChunkData(Vec2Int pos, float *buffer) {
 	std::lock_guard lock(blenderMutex);
 
     auto target = getBlenderChunkData(pos);
@@ -337,7 +337,7 @@ void BlenderImpl::generateChunkData(Vec2Int pos, float *buffer) {
 	mergeChunkWithMask(target, buffer);
 }
 
-float BlenderImpl::getHeight(Vec2Int pos) {
+float SimpleBlenderImpl::getHeight(Vec2Int pos) {
 	const Vec2Int chunkPos = pointToChunk(pos);
 	const Vec2Int localPos = pos - chunkPos * std::max(settings.resolution - 1, 1);
 	std::vector<float> chunk(static_cast<size_t>(settings.resolution) * settings.resolution);
@@ -346,18 +346,18 @@ float BlenderImpl::getHeight(Vec2Int pos) {
 }
 
 // Blender itself is deterministic, but the baseGenerator might not be
-bool BlenderImpl::isDeterministic() {
+bool SimpleBlenderImpl::isDeterministic() {
     return baseGenerator->isDeterministic();
 }
 
-void BlenderImpl::cleanChunkFromCache(Vec2Int pos) {
+// TODO: manage blender cache
+void SimpleBlenderImpl::cleanChunkFromCache(Vec2Int pos) {
 	std::lock_guard lock(blenderMutex);
 	GeneratorImpl::cleanChunkFromCache(pos);
-	// Easiest approach is to invalidate the whole blending cache
 	maskCache.clear();
 }
 
-void BlenderImpl::clearAllCache() {
+void SimpleBlenderImpl::clearAllCache() {
 	std::lock_guard lock(blenderMutex);
 	GeneratorImpl::clearAllCache();
     maskCache.clear();

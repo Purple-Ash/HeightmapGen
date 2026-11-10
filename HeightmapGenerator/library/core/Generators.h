@@ -116,7 +116,7 @@ public:
 	bool isDeterministic() override;
 };
 
-class BlenderImpl : public GeneratorImpl {
+class SimpleBlenderImpl : public GeneratorImpl {
 private:
 	struct BlenderChunkData {
 		uint8_t flags = 0;
@@ -131,14 +131,14 @@ private:
     std::shared_ptr<BlenderChunkData> getBlenderChunkData(Vec2Int pos);
 	void calculateCorrectionAlongEdge(std::shared_ptr<BlenderChunkData> target, std::shared_ptr<BlenderChunkData> neighbour, Edge edge);
 	void correctSharedCorner(std::shared_ptr<BlenderChunkData> northEast, std::shared_ptr<BlenderChunkData> southEast, std::shared_ptr<BlenderChunkData> southWest, std::shared_ptr<BlenderChunkData> northWest);   
-	void mergeChunkWithMask(std::shared_ptr<BlenderImpl::BlenderChunkData> chunkAndMask, float* buffer);
+	void mergeChunkWithMask(std::shared_ptr<SimpleBlenderImpl::BlenderChunkData> chunkAndMask, float* buffer);
 
 protected:
 	float getHeight(Vec2Int pos) override;
 	void generateChunkData(Vec2Int chunkPos, float* buffer) override;
 
 public:
-	BlenderImpl(ContextImpl* ctx, const CommonSettings& settings, const BlenderSettings& blenderSettings);
+	SimpleBlenderImpl(ContextImpl* ctx, const CommonSettings& settings, const BlenderSettings& blenderSettings);
     	
 	bool isDeterministic() override;
 	void cleanChunkFromCache(Vec2Int pos) override;
