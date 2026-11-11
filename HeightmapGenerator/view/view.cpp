@@ -71,7 +71,7 @@ Generator createHydraulicErosion(float scale, float amplitude, Generator generat
 }
 
 static std::vector<Sampler> samplers = {
-	{createSimple(createRandomGenerator, 1, 1), "Random Generator"},
+	{createSimple(createStaticNoiseGenerator, 1, 1), "Random Generator"},
 	{createSimple(createCoordinateGenerator, 0.5, 0.001), "Coordinate Generator"},
 	{createSimple(createVoronoiGenerator, 0.03, 1), "Voronoi Generator"},
 	{createSimple(createPerlinGenerator, 0.05, 1), "Perlin Generator"},

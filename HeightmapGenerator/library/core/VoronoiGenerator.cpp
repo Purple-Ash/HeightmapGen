@@ -48,7 +48,3 @@ VoronoiGeneratorImpl::VoronoiGeneratorImpl(ContextImpl* ctx, const CommonSetting
 float VoronoiGeneratorImpl::getHeight(Vec2Int pos) {
 	return sampleVoronoi(pos.x * settings.scale, pos.y * settings.scale, settings.seed) * settings.amplitude;
 }
-
-bool VoronoiGeneratorImpl::isDeterministic() {
-	return true;
-}

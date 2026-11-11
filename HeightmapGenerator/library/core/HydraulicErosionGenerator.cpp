@@ -206,7 +206,3 @@ float HydraulicErosionGeneratorImpl::getHeight(Vec2Int pos) {
 	float height = chunkData[localPos.x * settings.resolution + localPos.y];
 	return height;
 }
-
-bool HydraulicErosionGeneratorImpl::isDeterministic() {
-	return true;
-}

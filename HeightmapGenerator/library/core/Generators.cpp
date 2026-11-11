@@ -1,6 +1,7 @@
 #include "Generators.h"
 #include "Helpers.h"
 #include <algorithm>
+#include <bit>
 #include <cmath>
 #include <stdexcept>
 #include <span>
@@ -183,18 +184,14 @@ void GeneratorImpl::fastDrain() {
 	drain.store(true, std::memory_order_relaxed);
 }
 
-float RandomGeneratorImpl::getHeight(Vec2Int) {
-	return randomFloatBetween(0.f, 1.f) * settings.amplitude;
-}
-
-bool RandomGeneratorImpl::isDeterministic() {
-	return false;
+float StaticNoiseGeneratorImpl::getHeight(Vec2Int pos) {
+	size_t hash = std::hash<Vec2Int>{}(pos);
+	hash *= std::hash<int>{}(pos.x << 3) * std::hash<int>{}(pos.y << 6);
+	float noise_normalized = static_cast<float>(hash & 0xFFFFFF) / 0xFFFFFF;
+	float positive_noise = (noise_normalized * 2.0f - 1.0f);
+	return positive_noise * settings.amplitude;
 }
 
 float CoordinateGeneratorImpl::getHeight(Vec2Int pos) {
 	return (pos.x * settings.scale + pos.y * settings.scale) * settings.amplitude;
-}
-
-bool CoordinateGeneratorImpl::isDeterministic() {
-	return true;
 }

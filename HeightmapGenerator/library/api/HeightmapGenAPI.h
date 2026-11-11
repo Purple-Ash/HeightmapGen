@@ -48,7 +48,7 @@ extern "C" {
 	HG_API void destroyContext(Context ctx);
 
 	HG_API Generator createCoordinateGenerator(Context ctx, CommonSettings commonSettings);
-	HG_API Generator createRandomGenerator(Context ctx, CommonSettings commonSettings);
+	HG_API Generator createStaticNoiseGenerator(Context ctx, CommonSettings commonSettings);
 	HG_API Generator createVoronoiGenerator(Context ctx, CommonSettings commonSettings);
 	HG_API Generator createHydraulicErosionGenerator(Context ctx, CommonSettings commonSettings, HydraulicErosionSettings erosionSettings);
 	HG_API Generator createPerlinGenerator(Context ctx, CommonSettings commonSettings);

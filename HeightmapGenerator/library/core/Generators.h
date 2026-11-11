@@ -44,8 +44,6 @@ public:
 	void cleanChunkFromCache(Vec2Int pos);
 	void clearAllCache();
 
-	virtual bool isDeterministic() = 0;
-
 	ContextImpl* getContext() const;
 	const CommonSettings& getSettings() const;
 
@@ -60,15 +58,13 @@ class CoordinateGeneratorImpl : public GeneratorImpl {
 
 public:
 	CoordinateGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings) : GeneratorImpl(ctx, settings) {}
-	bool isDeterministic() override;
 };
 
-class RandomGeneratorImpl : public GeneratorImpl {
+class StaticNoiseGeneratorImpl : public GeneratorImpl {
 	float getHeight(Vec2Int pos) override;
 
 public:
-	RandomGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings) : GeneratorImpl(ctx, settings) {}
-	bool isDeterministic() override;
+	StaticNoiseGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings) : GeneratorImpl(ctx, settings) {}
 };
 
 class PerlinGeneratorImpl : public GeneratorImpl {
@@ -77,7 +73,6 @@ class PerlinGeneratorImpl : public GeneratorImpl {
 
 public:
 	PerlinGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings);
-	bool isDeterministic() override;
 };
 
 class BrownianPerlinGeneratorImpl : public GeneratorImpl {
@@ -92,7 +87,6 @@ class BrownianPerlinGeneratorImpl : public GeneratorImpl {
 
 public:
 	BrownianPerlinGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings);
-	bool isDeterministic() override;
 };
 
 class VoronoiGeneratorImpl : public GeneratorImpl {
@@ -100,7 +94,6 @@ class VoronoiGeneratorImpl : public GeneratorImpl {
 
 	public:
 		VoronoiGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings);
-		bool isDeterministic() override;
 };
 
 class HydraulicErosionGeneratorImpl : public GeneratorImpl {
@@ -112,5 +105,4 @@ class HydraulicErosionGeneratorImpl : public GeneratorImpl {
 
 public:
 	HydraulicErosionGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings, const HydraulicErosionSettings& erosionSettings);
-	bool isDeterministic() override;
 };
