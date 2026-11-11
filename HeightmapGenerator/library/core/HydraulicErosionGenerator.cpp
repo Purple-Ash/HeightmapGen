@@ -70,7 +70,7 @@ std::vector<BrushPoint> createErosionBrush(int32_t radius) {
 }
 
 void erodeHeightmap(std::vector<float>& heightmap, int32_t width, int32_t height, int32_t borderSize,
-					int32_t outputSampleCount, const HydraulicErosionSettings& settings) {
+		const HydraulicErosionSettings& settings) {
 
 	const auto brush = createErosionBrush(settings.erosionRadius);
 
@@ -79,7 +79,7 @@ void erodeHeightmap(std::vector<float>& heightmap, int32_t width, int32_t height
 	if (spawnWidth <= 0 || spawnHeight <= 0) {
 		return;
 	}
-	const int32_t iterationCount = outputSampleCount * settings.numIterations;
+	const int32_t iterationCount = spawnWidth * spawnHeight * settings.numIterations;
 	std::mt19937 random(settings.seed);
 
 	for (int32_t iteration = 0; iteration < iterationCount; iteration++) {
@@ -161,15 +161,16 @@ HydraulicErosionGeneratorImpl::HydraulicErosionGeneratorImpl(ContextImpl* ctx, c
 void HydraulicErosionGeneratorImpl::generateChunkData(Vec2Int chunkPos, float* buffer) {
 	int32_t res = settings.resolution;
 	const int32_t radius = hydraulicErosionSettings.erosionRadius;
-	const int32_t paddedWidth = res + radius * 2;
-	const int32_t paddedHeight = res + radius * 2;
-	const int32_t outputSampleCount = res * res;
+	const int32_t margin  = radius + hydraulicErosionSettings.padding;
+	const int32_t paddedWidth = res + margin * 2;
+	const int32_t paddedHeight = res + margin * 2;
+
 	const int32_t paddedSampleCount = paddedWidth * paddedHeight;
 
 	std::vector<float> paddedHeightmap(paddedSampleCount);
 
 	int32_t stride = std::max(res - 1, 1);
-	Vec2Int startSample = chunkPos * stride - radius;
+	Vec2Int startSample = chunkPos * stride - margin;
 
 	for (Vec2Int pos{}; pos.x < paddedWidth; pos.x++) {
 		for (pos.y = 0; pos.y < paddedHeight; pos.y++) {
@@ -184,11 +185,11 @@ void HydraulicErosionGeneratorImpl::generateChunkData(Vec2Int chunkPos, float* b
 		}
 	}
 
-	erodeHeightmap(paddedHeightmap, paddedWidth, paddedHeight, radius, outputSampleCount, hydraulicErosionSettings);
+	erodeHeightmap(paddedHeightmap, paddedWidth, paddedHeight, radius, hydraulicErosionSettings);
 
 	for (int32_t x = 0; x < res; x++) {
 		for (int32_t y = 0; y < res; y++) {
-			buffer[x * res + y] = paddedHeightmap[(x + radius) * paddedHeight + (y + radius)] * settings.amplitude;
+			buffer[x * res + y] = paddedHeightmap[(x + margin) * paddedHeight + (y + margin)] * settings.amplitude;
 		}
 	}
 }
