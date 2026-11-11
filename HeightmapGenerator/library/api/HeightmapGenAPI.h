@@ -42,6 +42,13 @@ struct HydraulicErosionSettings
 	Generator baseGeneratorImpl = nullptr;
 };
 
+struct BlenderSettings 
+{
+    int32_t blendingRadius; // over how many points inward from the edge is the terrain blended
+    int32_t edgeSamplingRadius; // how many points inward from the edge are used to calculate new edge height
+	Generator baseGeneratorImpl = nullptr;
+};
+
 extern "C" {
 	HG_API const char* smokeTest(const char* data);
 
@@ -52,6 +59,7 @@ extern "C" {
 	HG_API Generator createRandomGenerator(Context ctx, CommonSettings commonSettings);
 	HG_API Generator createVoronoiGenerator(Context ctx, CommonSettings commonSettings);
 	HG_API Generator createHydraulicErosionGenerator(Context ctx, CommonSettings commonSettings, HydraulicErosionSettings erosionSettings);
+	HG_API Generator createBlenderGenerator(Context ctx, CommonSettings commonSettings, BlenderSettings blenderSettings);
 	HG_API Generator createPerlinGenerator(Context ctx, CommonSettings commonSettings);
 	HG_API Generator createBrownianPerlinGenerator(Context ctx, CommonSettings commonSettings);
 	HG_API void destroyGenerator(Generator generator);
