@@ -12,6 +12,17 @@ inline float randomFloatBetween(float min, float max)
 	return dis(gen);
 }
 
+static constexpr float whiteNoise(int x, int y, int z) {
+	uint32_t seed = uint32_t(x) * 1087;
+	seed ^= 0xE56FAA12;
+	seed += uint32_t(y) * 2749;
+	seed ^= 0x69628a2d;
+	seed += uint32_t(z) * 3433;
+	seed ^= 0xa7b2c49a;
+
+	return (float) (seed % 1000) / 1000.0f;
+}
+
 template<typename T>
 struct Vec2 {
 	T x;

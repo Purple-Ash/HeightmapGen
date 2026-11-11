@@ -185,11 +185,7 @@ void GeneratorImpl::fastDrain() {
 }
 
 float StaticNoiseGeneratorImpl::getHeight(Vec2Int pos) {
-	size_t hash = std::hash<Vec2Int>{}(pos);
-	hash *= std::hash<int>{}(pos.x << 3) * std::hash<int>{}(pos.y << 6);
-	float noise_normalized = static_cast<float>(hash & 0xFFFFFF) / 0xFFFFFF;
-	float positive_noise = (noise_normalized * 2.0f - 1.0f);
-	return positive_noise * settings.amplitude;
+	return whiteNoise(pos.x, pos.y, static_cast<int32_t>(settings.seed)) * settings.amplitude;
 }
 
 float CoordinateGeneratorImpl::getHeight(Vec2Int pos) {
