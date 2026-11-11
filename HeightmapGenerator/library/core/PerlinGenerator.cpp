@@ -51,10 +51,6 @@ constexpr auto p = [] {
 PerlinGeneratorImpl::PerlinGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings) : GeneratorImpl(ctx, settings) {
 }
 
-bool PerlinGeneratorImpl::isDeterministic() {
-	return true;
-}
-
 
 float PerlinGeneratorImpl::getHeight(Vec2Int pos) {
 	double sampleX = static_cast<double>(pos.x) * settings.scale;
@@ -112,9 +108,4 @@ float BrownianPerlinGeneratorImpl::getHeight(Vec2Int pos) {
 		totalHeight += octave->getHeight(pos);
 	}
 	return totalHeight / amplitude;
-}
-
-bool BrownianPerlinGeneratorImpl::isDeterministic()
-{
-	return true;
 }

@@ -23,9 +23,9 @@ HG_API Generator createCoordinateGenerator(Context ctx, CommonSettings commonSet
 	return ctx->registerGenerator(std::make_shared<CoordinateGeneratorImpl>(ctx, commonSettings));
 }
 
-HG_API Generator createRandomGenerator(Context ctx, CommonSettings commonSettings) {
+HG_API Generator createStaticNoiseGenerator(Context ctx, CommonSettings commonSettings) {
 	if (!ctx) return nullptr;
-	return ctx->registerGenerator(std::make_shared<RandomGeneratorImpl>(ctx, commonSettings));
+	return ctx->registerGenerator(std::make_shared<StaticNoiseGeneratorImpl>(ctx, commonSettings));
 }
 
 HG_API Generator createVoronoiGenerator(Context ctx, CommonSettings commonSettings) {

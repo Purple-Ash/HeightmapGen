@@ -183,18 +183,10 @@ void GeneratorImpl::fastDrain() {
 	drain.store(true, std::memory_order_relaxed);
 }
 
-float RandomGeneratorImpl::getHeight(Vec2Int) {
-	return randomFloatBetween(0.f, 1.f) * settings.amplitude;
-}
-
-bool RandomGeneratorImpl::isDeterministic() {
-	return false;
+float StaticNoiseGeneratorImpl::getHeight(Vec2Int pos) {
+	return whiteNoise(pos.x, pos.y, static_cast<int32_t>(settings.seed)) * settings.amplitude;
 }
 
 float CoordinateGeneratorImpl::getHeight(Vec2Int pos) {
 	return (pos.x * settings.scale + pos.y * settings.scale) * settings.amplitude;
-}
-
-bool CoordinateGeneratorImpl::isDeterministic() {
-	return true;
 }

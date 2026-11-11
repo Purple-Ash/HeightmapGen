@@ -2,17 +2,6 @@
 #include "Helpers.h"
 #include <cstdint>
 
-static constexpr float whiteNoise(int x, int y, int z) {
-	uint32_t seed = uint32_t(x) * 1087;
-	seed ^= 0xE56FAA12;
-	seed += uint32_t(y) * 2749;
-	seed ^= 0x69628a2d;
-	seed += uint32_t(z) * 3433;
-	seed ^= 0xa7b2c49a;
-
-	return (float) (seed % 1000) / 1000.0f;
-}
-
 static constexpr Vec3f sampleVoronoiChunk(int x, int y, int z) {
 	return {x + whiteNoise(x, y, z), y + whiteNoise(z + 53, x + 197, y + 967), z + whiteNoise(y + 5, z + 829, x + 541)};
 }
@@ -47,8 +36,4 @@ VoronoiGeneratorImpl::VoronoiGeneratorImpl(ContextImpl* ctx, const CommonSetting
 
 float VoronoiGeneratorImpl::getHeight(Vec2Int pos) {
 	return sampleVoronoi(pos.x * settings.scale, pos.y * settings.scale, settings.seed) * settings.amplitude;
-}
-
-bool VoronoiGeneratorImpl::isDeterministic() {
-	return true;
 }
