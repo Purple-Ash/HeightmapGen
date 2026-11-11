@@ -4,6 +4,7 @@
 #include <bit>
 #include <cstddef>
 #include <stdexcept>
+#include <limits>
 
 struct EdgeLayout {
     Edge opposite;
@@ -12,6 +13,7 @@ struct EdgeLayout {
     Vec2Int inwardStep;
 };
 
+// lookup table describing how to walk along each edge of a chunk
 std::array<EdgeLayout, 4> edgeLayoutsByBitIndex{{
     { Edge::South, Vec2Int{ 0, 0 }, Vec2Int{ 1, 0 }, Vec2Int{ 0, 1 } },
     { Edge::West, Vec2Int{ 1, 0 }, Vec2Int{ 0, 1 }, Vec2Int{ -1, 0 } },
@@ -19,6 +21,7 @@ std::array<EdgeLayout, 4> edgeLayoutsByBitIndex{{
     { Edge::East, Vec2Int{ 0, 0 }, Vec2Int{ 0, 1 }, Vec2Int{ 1, 0 } }
 }};
 
+// describes
 struct EdgeCornerLayout {
     Corner firstStart;
     Corner firstEnd;
@@ -26,6 +29,7 @@ struct EdgeCornerLayout {
     Corner secondEnd;
 };
 
+// lookup table that specifies which corners meet at each end of a shared edge
 std::array<EdgeCornerLayout, 4> edgeCornerLayoutsByBitIndex{{
     { Corner::NorthWest, Corner::NorthEast, Corner::SouthWest, Corner::SouthEast },
     { Corner::NorthEast, Corner::SouthEast, Corner::NorthWest, Corner::SouthWest },
@@ -33,6 +37,7 @@ std::array<EdgeCornerLayout, 4> edgeCornerLayoutsByBitIndex{{
     { Corner::NorthWest, Corner::SouthWest, Corner::NorthEast, Corner::SouthEast }
 }};
 
+// lookup table used for quickly translating enumerated corners into chunk coordinates
 std::array<Vec2Int, 4> cornerOffsetsByBitIndex{{
     Vec2Int{ 1, 0 },
     Vec2Int{ 1, 1 },
@@ -69,42 +74,33 @@ uint8_t markCornerFinalized(Corner corner, uint8_t flags) {
 }
 
 bool isChunkFullyBlended(uint8_t flags) {
-    return flags == static_cast<uint8_t>(255);
+    return flags == std::numeric_limits<uint8_t>::max();
 }
 
-int32_t chunkCoordsToChunkIdx(Vec2Int point, int32_t resolution) {
-    return point.x * resolution + point.y;
-}
-
-int32_t chunkCoordsToMaskIdx(int32_t x, int32_t y, int32_t resolution, int32_t radius) {
+int32_t chunkCoordsToMaskIdx(Vec2Int point, int32_t resolution, int32_t radius) {
     // reduced northern edge
-	if (y < radius && x < resolution - radius && x >= radius) {
-		return radius * resolution + y * (resolution - 2 * radius) + (x - radius);
+	if (point.y < radius && point.x < resolution - radius && point.x >= radius) {
+		return radius * resolution + point.y * (resolution - 2 * radius) + (point.x - radius);
 	}
 
     // reduced southern edge
-	if (y >= resolution - radius && x < resolution - radius && x >= radius) {
-		return 2 * radius * (resolution - radius) +
-			(y + radius - resolution) * (resolution - 2 * radius) + (x - radius);
+	if (point.y >= resolution - radius && point.x < resolution - radius && point.x >= radius) {
+		return 2 * radius * (resolution - radius) + (point.y + radius - resolution) * (resolution - 2 * radius) + (point.x - radius);
 	}
 
     // full western edge
-	if (x < radius) {
-		return x * resolution + y;
+	if (point.x < radius) {
+		return point.x * resolution + point.y;
 	}
 
     // full eastern edge
-	if (x >= resolution - radius) {
+	if (point.x >= resolution - radius) {
 		return radius * (3 * resolution - 4 * radius) +
-			(x - resolution + radius) * resolution + y;
+			(point.x - resolution + radius) * resolution + point.y;
 	}
 
     // fail
 	return -1;
-}
-
-int32_t chunkCoordsToMaskIdx(Vec2Int point, int32_t resolution, int32_t radius) {
-    return chunkCoordsToMaskIdx(point.x, point.y, resolution, radius);
 }
 
 float smoothstep(float t) {
@@ -212,12 +208,10 @@ SimpleBlenderImpl::SimpleBlenderImpl(ContextImpl* ctx, const CommonSettings& com
 	if (settings.resolution < 2) {
 		throw std::invalid_argument("Blender resolution must be at least 2");
 	}
-	if (blenderSettings.blendingRadius <= 0 ||
-		static_cast<int64_t>(blenderSettings.blendingRadius) * 2 > settings.resolution) {
+	if (blenderSettings.blendingRadius <= 0 || blenderSettings.blendingRadius * 2 > settings.resolution) {
 		throw std::invalid_argument("Blender radius must be positive and no greater than half the resolution");
 	}
-	if (blenderSettings.edgeSamplingRadius <= 0 ||
-		blenderSettings.edgeSamplingRadius > settings.resolution) {
+	if (blenderSettings.edgeSamplingRadius <= 0 || blenderSettings.edgeSamplingRadius > settings.resolution) {
 		throw std::invalid_argument("Blender edge-sampling radius must be positive and no greater than half the resolution");
 	}
 	if (baseGenerator->getSettings().resolution != settings.resolution) {
@@ -349,8 +343,10 @@ void SimpleBlenderImpl::generateChunkData(Vec2Int pos, float *buffer) {
 
     auto target = getBlenderChunkData(pos);
 
-    if (isChunkFullyBlended(target->flags))
+    if (isChunkFullyBlended(target->flags)) {
+        applyCorrectionsToChunk(target, buffer);
         return;
+    }
 
     auto north = getBlenderChunkData(pos + Vec2Int{ 0, -1 });
     auto northeast = getBlenderChunkData(pos + Vec2Int{ 1, -1 });

@@ -130,9 +130,9 @@ private:
 
     std::shared_ptr<BlenderChunkData> getBlenderChunkData(Vec2Int pos);
 	void calculateCorrectionAlongEdge(std::shared_ptr<BlenderChunkData> target, std::shared_ptr<BlenderChunkData> neighbour, Edge edge);
-	void correctSharedCorner(std::shared_ptr<BlenderChunkData> northEast, std::shared_ptr<BlenderChunkData> southEast, std::shared_ptr<BlenderChunkData> southWest, std::shared_ptr<BlenderChunkData> northWest);   
-	void correctSharedBoundary(std::shared_ptr<BlenderChunkData> first, std::shared_ptr<BlenderChunkData> second, Edge edge);
-	void applyCorrectionsToChunk(std::shared_ptr<SimpleBlenderImpl::BlenderChunkData> chunkAndMask, float* buffer);
+	void correctSharedCorner(std::shared_ptr<BlenderChunkData> northEast, std::shared_ptr<BlenderChunkData> southEast, std::shared_ptr<BlenderChunkData> southWest, std::shared_ptr<BlenderChunkData> northWest);
+    void correctSharedBoundary(std::shared_ptr<BlenderChunkData> first, std::shared_ptr<BlenderChunkData> second, Edge edge);
+    void applyCorrectionsToChunk(std::shared_ptr<SimpleBlenderImpl::BlenderChunkData> chunkAndMask, float* buffer);
 
 protected:
 	float getHeight(Vec2Int pos) override;

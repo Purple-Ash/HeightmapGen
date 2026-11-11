@@ -229,6 +229,48 @@ TEST(CoreTests, HydraulicErosionGeneratorTest) {
 	destroyContext(ctx);
 }
 
+TEST(CoreTests, KnownGeneratorsReturnTheSameChunkTwice)
+{
+	int resolution = 16;
+	Context ctx = createContext(0);
+	ASSERT_NE(ctx, nullptr);
+
+	CommonSettings settings{ 2026, 1.0f, 1.0f, resolution, false };
+	Generator coordinate = createCoordinateGenerator(ctx, settings);
+	Generator voronoi = createVoronoiGenerator(ctx, settings);
+	Generator perlin = createPerlinGenerator(ctx, settings);
+	Generator brownianPerlin = createBrownianPerlinGenerator(ctx, settings);
+
+	HydraulicErosionSettings erosionSettings{};
+	erosionSettings.baseGeneratorImpl = brownianPerlin;
+	Generator hydraulicErosion = createHydraulicErosionGenerator(ctx, settings, erosionSettings);
+	Generator blender = createBlenderGenerator(ctx, settings, BlenderSettings{ 3, 2, hydraulicErosion });
+
+	std::array<std::pair<const char*, Generator>, 6> generators{{
+		{ "Coordinate", coordinate },
+		{ "Voronoi", voronoi },
+		{ "Perlin", perlin },
+		{ "Brownian Perlin", brownianPerlin },
+		{ "Hydraulic Erosion", hydraulicErosion },
+		{ "Blender", blender }
+	}};
+	for (auto& [name, generator] : generators) {
+		ASSERT_NE(generator, nullptr);
+
+		std::vector<float> first(resolution * resolution);
+		std::vector<float> second(resolution * resolution);
+		ASSERT_NE(first.data(), nullptr);
+		ASSERT_NE(second.data(), nullptr);
+		EXPECT_NO_THROW({
+			getChunk(generator, 1, 1, first.data());
+			getChunk(generator, 1, 1, second.data());
+		});
+		EXPECT_EQ(first, second);
+	}
+
+	destroyContext(ctx);
+}
+
 TEST(BlenderTests, BlenderOutputIsIndependentOfChunkRequestOrder) {
 	Context ctx = createContext(2);
 	ASSERT_NE(ctx, nullptr);
@@ -243,19 +285,19 @@ TEST(BlenderTests, BlenderOutputIsIndependentOfChunkRequestOrder) {
 	ASSERT_NE(first, nullptr);
 	ASSERT_NE(second, nullptr);
 
-	const std::array<std::array<int, 2>, 5> positions{{
+	std::array<std::array<int, 2>, 5> positions{{
 		{0, 0}, {1, 0}, {0, 1}, {1, 1}, {2, 1}
 	}};
 	std::vector<std::vector<float>> expected;
-	for (const auto& pos : positions) {
+	for (auto& pos : positions) {
 		std::vector<float> chunk(settings.resolution * settings.resolution);
 		getChunk(first, pos[0], pos[1], chunk.data());
 		expected.push_back(std::move(chunk));
 	}
 
 	for (size_t reverseIndex = positions.size(); reverseIndex > 0; --reverseIndex) {
-		const size_t index = reverseIndex - 1;
-		const auto& pos = positions[index];
+		size_t index = reverseIndex - 1;
+		auto& pos = positions[index];
 		std::vector<float> chunk(settings.resolution * settings.resolution);
 		getChunk(second, pos[0], pos[1], chunk.data());
 		ASSERT_EQ(chunk.size(), expected[index].size());
@@ -267,8 +309,42 @@ TEST(BlenderTests, BlenderOutputIsIndependentOfChunkRequestOrder) {
 	destroyContext(ctx);
 }
 
+TEST(BlenderTests, BlenderOutputIsStableAfterGeneratingAllNeighbours) {
+	int resolution = 16;
+	Context ctx = createContext(0);
+	ASSERT_NE(ctx, nullptr);
+
+	CommonSettings settings{ 123, 1.0f, 1.0f, resolution, true };
+	Generator base = createPerlinGenerator(ctx, settings);
+	ASSERT_NE(base, nullptr);
+	Generator targetFirstBlender =
+		createBlenderGenerator(ctx, settings, BlenderSettings{ 3, 2, base });
+	Generator neighboursFirstBlender =
+		createBlenderGenerator(ctx, settings, BlenderSettings{ 3, 2, base });
+	ASSERT_NE(targetFirstBlender, nullptr);
+	ASSERT_NE(neighboursFirstBlender, nullptr);
+
+	std::vector<float> targetFirst(resolution * resolution);
+	std::vector<float> targetAfterNeighbours(resolution * resolution);
+	getChunk(targetFirstBlender, 0, 0, targetFirst.data());
+
+	std::vector<float> neighbour(resolution * resolution);
+	for (int x = -1; x <= 1; ++x) {
+		for (int y = -1; y <= 1; ++y) {
+			if (x == 0 && y == 0) {
+				continue;
+			}
+			getChunk(neighboursFirstBlender, x, y, neighbour.data());
+		}
+	}
+	getChunk(neighboursFirstBlender, 0, 0, targetAfterNeighbours.data());
+
+	EXPECT_EQ(targetFirst, targetAfterNeighbours);
+	destroyContext(ctx);
+}
+
 TEST(BlenderTests, BlenderRebuildsChunkAfterCacheClean) {
-	constexpr int resolution = 16;
+	int resolution = 16;
 	Context ctx = createContext(0);
 	ASSERT_NE(ctx, nullptr);
 
@@ -291,7 +367,7 @@ TEST(BlenderTests, BlenderRebuildsChunkAfterCacheClean) {
 }
 
 TEST(BlenderTests, BlenderProducesMatchingSharedEdges) {
-	constexpr int resolution = 16;
+	int resolution = 16;
 	Context ctx = createContext(2);
 	ASSERT_NE(ctx, nullptr);
 
@@ -323,8 +399,8 @@ TEST(BlenderTests, BlenderProducesMatchingSharedEdges) {
 }
 
 TEST(BlenderTests, BlenderProducesMatchingSharedEdgesForIndependentChunks) {
-	constexpr int resolution = 16;
-	for (const int blendingRadius : { 1, 3, 7 }) {
+	int resolution = 16;
+	for (int blendingRadius : { 1, 3, 7 }) {
 		Context ctx = createContext(0);
 		ASSERT_NE(ctx, nullptr);
 
@@ -348,9 +424,9 @@ TEST(BlenderTests, BlenderProducesMatchingSharedEdgesForIndependentChunks) {
 		getChunk(blender, 1, 1, northeast.data());
 
 		std::vector<float> reverseChunk(resolution * resolution);
-		for (const auto& pos : { std::array<int, 2>{ 1, 1 }, { 0, 1 }, { 1, 0 }, { 0, 0 } }) {
+		for (auto& pos : { std::array<int, 2>{ 1, 1 }, { 0, 1 }, { 1, 0 }, { 0, 0 } }) {
 			getChunk(reverseOrderBlender, pos[0], pos[1], reverseChunk.data());
-			const std::vector<float>* expected = nullptr;
+			std::vector<float>* expected = nullptr;
 			if (pos == std::array<int, 2>{ 0, 0 }) expected = &southwest;
 			else if (pos == std::array<int, 2>{ 1, 0 }) expected = &southeast;
 			else if (pos == std::array<int, 2>{ 0, 1 }) expected = &northwest;
@@ -378,7 +454,7 @@ TEST(BlenderTests, BlenderProducesMatchingSharedEdgesForIndependentChunks) {
 }
 
 TEST(BlenderTests, BlenderProducesMatchingSharedCorners) {
-	constexpr int resolution = 16;
+	int resolution = 16;
 	Context ctx = createContext(2);
 	ASSERT_NE(ctx, nullptr);
 
@@ -397,9 +473,9 @@ TEST(BlenderTests, BlenderProducesMatchingSharedCorners) {
 	getChunk(blender, 0, 1, northwest.data());
 	getChunk(blender, 1, 1, northeast.data());
 
-	const size_t southwestCorner = (resolution - 1) * resolution + resolution - 1;
-	const size_t southeastCorner = (resolution - 1) * resolution;
-	const size_t northwestCorner = resolution - 1;
+	size_t southwestCorner = (resolution - 1) * resolution + resolution - 1;
+	size_t southeastCorner = (resolution - 1) * resolution;
+	size_t northwestCorner = resolution - 1;
 	EXPECT_FLOAT_EQ(southwest[southwestCorner], southeast[southeastCorner]);
 	EXPECT_FLOAT_EQ(southwest[southwestCorner], northwest[northwestCorner]);
 	EXPECT_FLOAT_EQ(southwest[southwestCorner], northeast[0]);
@@ -408,10 +484,10 @@ TEST(BlenderTests, BlenderProducesMatchingSharedCorners) {
 }
 
 void expectBlenderSmoothsWithEdgeSamplingRadius(int edgeSamplingRadius) {
-	constexpr int resolution = 16;
-	constexpr int blendingRadius = 3;
-	constexpr int sampleY = resolution / 2;
-	constexpr size_t chunkArea = resolution * resolution;
+	int resolution = 16;
+	int blendingRadius = 3;
+	int sampleY = resolution / 2;
+	size_t chunkArea = resolution * resolution;
 
 	Context ctx = createContext(0);
 	ASSERT_NE(ctx, nullptr);
@@ -439,17 +515,17 @@ void expectBlenderSmoothsWithEdgeSamplingRadius(int edgeSamplingRadius) {
 	sharedHeight /= 2.0f * edgeSamplingRadius;
 
 	for (int depth = 0; depth < blendingRadius; ++depth) {
-		const int localX = resolution - 1 - depth;
-		const size_t index = localX * resolution + sampleY;
-		const float t = 1.0f - static_cast<float>(depth) / blendingRadius;
-		const float strength = t * t * (3.0f - 2.0f * t);
-		const float expected = baseChunk[index] +
+		int localX = resolution - 1 - depth;
+		size_t index = localX * resolution + sampleY;
+		float t = 1.0f - static_cast<float>(depth) / blendingRadius;
+		float strength = t * t * (3.0f - 2.0f * t);
+		float expected = baseChunk[index] +
 			strength * (sharedHeight - baseChunk[index]);
 
 		EXPECT_NEAR(blendedChunk[index], expected, 1e-5f);
 	}
 
-	const size_t outsideRadiusIndex =
+	size_t outsideRadiusIndex =
 		(resolution - 1 - blendingRadius) * resolution + sampleY;
 	EXPECT_FLOAT_EQ(blendedChunk[outsideRadiusIndex], baseChunk[outsideRadiusIndex]);
 
@@ -465,9 +541,9 @@ TEST(BlenderTests, BlenderSmoothsWithEdgeSamplingRadiusThree) {
 }
 
 TEST(BlenderTests, BlenderGetPointMatchesChunkWithinBlendingRadius) {
-	constexpr int resolution = 16;
-	constexpr int blendingRadius = 3;
-	constexpr int sampleY = resolution / 2;
+	int resolution = 16;
+	int blendingRadius = 3;
+	int sampleY = resolution / 2;
 	Context ctx = createContext(0);
 	ASSERT_NE(ctx, nullptr);
 
@@ -480,11 +556,11 @@ TEST(BlenderTests, BlenderGetPointMatchesChunkWithinBlendingRadius) {
 	std::vector<float> chunk(resolution * resolution);
 	getChunk(blender, 0, 0, chunk.data());
 	for (int depth = 0; depth < blendingRadius; ++depth) {
-		const int x = resolution - 1 - depth;
-		const size_t index = x * resolution + sampleY;
+		int x = resolution - 1 - depth;
+		size_t index = x * resolution + sampleY;
 		EXPECT_FLOAT_EQ(getPoint(blender, x, sampleY), chunk[index]);
 	}
-	const int outsideRadiusX = resolution - 1 - blendingRadius;
+	int outsideRadiusX = resolution - 1 - blendingRadius;
 	EXPECT_FLOAT_EQ(
 		getPoint(blender, outsideRadiusX, sampleY),
 		chunk[outsideRadiusX * resolution + sampleY]);
