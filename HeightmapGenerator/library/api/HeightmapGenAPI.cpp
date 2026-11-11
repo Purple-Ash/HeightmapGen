@@ -55,6 +55,17 @@ HG_API Generator createHydraulicErosionGenerator(Context ctx, CommonSettings com
 	}
 }
 
+HG_API Generator createBlenderGenerator(Context ctx, CommonSettings commonSettings, BlenderSettings blenderSettings) {
+	if (!ctx || !blenderSettings.baseGeneratorImpl) return nullptr;
+	if (!ctx->getGenerator(blenderSettings.baseGeneratorImpl)) return nullptr;
+	try {
+		return ctx->registerGenerator(std::make_shared<SimpleBlenderImpl>(ctx, commonSettings, blenderSettings));
+	}
+	catch (const std::exception&) {
+		return nullptr;
+	}
+}
+
 HG_API void destroyGenerator(Generator generator) {
 	if (generator) {
 		generator->getContext()->removeGenerator(generator);
