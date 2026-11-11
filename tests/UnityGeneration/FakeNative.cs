@@ -15,7 +15,7 @@ public static class HeightmapGenAPI
     }
     public struct HydraulicErosionSettings
     {
-        public int seed, numIterations, erosionRadius, maxDropletLifetime;
+        public int seed, numIterations, erosionRadius, padding, maxDropletLifetime;
         public float inertia, sedimentCapacityFactor, minSedimentCapacity, erodeSpeed, depositSpeed;
         public float evaporateSpeed, gravity, initialSpeed, initialWaterVolume;
         public IntPtr baseGeneratorImpl;
@@ -35,7 +35,7 @@ public static class HeightmapGenAPI
     }
     static readonly ConcurrentDictionary<IntPtr, Context> contexts = new();
     static readonly ConcurrentDictionary<IntPtr, Generator> generators = new();
-    static int next, calls, requests, active, peak, mainThread, contextPeak, cleanupCalls;
+    static int next, calls, requests, active, peak, mainThread, contextPeak, cleanupCalls, lastErosionPadding;
     public static SemaphoreSlim Gate = new(0);
     public static ManualResetEventSlim CleanupGate = new(true);
     public static ManualResetEventSlim FirstChunkGate = new(true);
@@ -46,12 +46,13 @@ public static class HeightmapGenAPI
     public static int Peak => Volatile.Read(ref peak);
     public static int CleanupCalls => Volatile.Read(ref cleanupCalls);
     public static int ContextPeak => Volatile.Read(ref contextPeak);
+    public static int LastErosionPadding => Volatile.Read(ref lastErosionPadding);
     public static int LiveHandles => contexts.Count + generators.Count;
     static void Entry() { if (Environment.CurrentManagedThreadId == mainThread) Interlocked.Increment(ref MainThreadCalls); }
     public static void Reset()
     {
         Check.That(LiveHandles == 0 && active == 0, "previous run leaked");
-        calls = requests = active = peak = contextPeak = cleanupCalls = MainThreadCalls = 0;
+        calls = requests = active = peak = contextPeak = cleanupCalls = MainThreadCalls = lastErosionPadding = 0;
         mainThread = Environment.CurrentManagedThreadId;
         FailCreation = FailRead = HoldFirstChunk = false;
         Gate = new(0); CleanupGate = new(true); FirstChunkGate = new(true);
@@ -85,6 +86,7 @@ public static class HeightmapGenAPI
     public static IntPtr createHydraulicErosionGenerator(IntPtr context, CommonSettings settings, HydraulicErosionSettings erosion)
     {
         Check.That(generators.ContainsKey(erosion.baseGeneratorImpl), "erosion base missing");
+        Volatile.Write(ref lastErosionPadding, erosion.padding);
         var id = createPerlinGenerator(context, settings);
         if (id != IntPtr.Zero) generators[id].Base = erosion.baseGeneratorImpl;
         return id;

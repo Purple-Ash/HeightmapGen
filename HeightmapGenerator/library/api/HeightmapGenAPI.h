@@ -27,6 +27,7 @@ struct HydraulicErosionSettings {
 	int32_t numIterations = 1;
 	int32_t erosionRadius = 3;
 	int32_t maxDropletLifetime = 30;
+	int32_t padding = 30;
 	float inertia = 0.05f;
 	float sedimentCapacityFactor = 4.0f;
 	float minSedimentCapacity = 0.01f;
@@ -48,6 +49,13 @@ struct ModelErosionSettings {
 	const char* modelPath = nullptr;
 };
 
+struct BlenderSettings 
+{
+    int32_t blendingRadius; // over how many points inward from the edge is the terrain blended
+    int32_t edgeSamplingRadius; // how many points inward from the edge are used to calculate new edge height
+	Generator baseGeneratorImpl = nullptr;
+};
+
 extern "C" {
 	HG_API const char* smokeTest(const char* data);
 
@@ -58,6 +66,7 @@ extern "C" {
 	HG_API Generator createRandomGenerator(Context ctx, CommonSettings commonSettings);
 	HG_API Generator createVoronoiGenerator(Context ctx, CommonSettings commonSettings);
 	HG_API Generator createHydraulicErosionGenerator(Context ctx, CommonSettings commonSettings, HydraulicErosionSettings erosionSettings);
+	HG_API Generator createBlenderGenerator(Context ctx, CommonSettings commonSettings, BlenderSettings blenderSettings);
 	HG_API Generator createPerlinGenerator(Context ctx, CommonSettings commonSettings);
 	HG_API Generator createBrownianPerlinGenerator(Context ctx, CommonSettings commonSettings);
 	HG_API Generator createBPGenerator(Context ctx, CommonSettings commonSettings, BPGeneratorSettings bpSettings);

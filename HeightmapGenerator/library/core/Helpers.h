@@ -87,3 +87,22 @@ namespace std {
 		}
 	};
 }
+
+
+enum class Edge : uint8_t {
+    North = 1u << 0,
+    East  = 1u << 1,
+    South = 1u << 2,
+    West  = 1u << 3
+};
+
+enum class Corner : uint8_t {
+    NorthEast = 1u << 4,
+    SouthEast = 1u << 5,
+    SouthWest = 1u << 6,
+    NorthWest = 1u << 7
+};
+
+inline int32_t chunkCoordsToChunkIdx(Vec2Int point, int32_t resolution) {
+    return point.x * resolution + point.y;
+}

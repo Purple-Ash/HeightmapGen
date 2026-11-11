@@ -23,6 +23,7 @@ public static class HeightmapGenAPI
         public int numIterations;
         public int erosionRadius;
         public int maxDropletLifetime;
+        public int padding;
         public float inertia;
         public float sedimentCapacityFactor;
         public float minSedimentCapacity;
@@ -41,6 +42,7 @@ public static class HeightmapGenAPI
             erosionRadius = 3,
             maxDropletLifetime = 30,
             inertia = 0.05f,
+            padding = 30,
             sedimentCapacityFactor = 4.0f,
             minSedimentCapacity = 0.01f,
             erodeSpeed = 0.3f,

@@ -43,6 +43,7 @@ public class TerrainGen : MonoBehaviour
     [Min(0)][SerializeField] private int erosionIterations = 10;
     [Min(1)][SerializeField] private int erosionRadius = 3;
     [Min(1)][SerializeField] private int maxDropletLifetime = 30;
+    [Min(0)][SerializeField] private int padding = 30;
     [Range(0.0f, 1.0f)][SerializeField] private float inertia = 0.05f;
     [Min(0.0f)][SerializeField] private float sedimentCapacityFactor = 4.0f;
     [Min(0.0f)][SerializeField] private float minSedimentCapacity = 0.01f;
@@ -201,6 +202,7 @@ public class TerrainGen : MonoBehaviour
             numIterations = erosionIterations,
             erosionRadius = erosionRadius,
             maxDropletLifetime = maxDropletLifetime,
+            padding = padding,
             inertia = inertia,
             sedimentCapacityFactor = sedimentCapacityFactor,
             minSedimentCapacity = minSedimentCapacity,
