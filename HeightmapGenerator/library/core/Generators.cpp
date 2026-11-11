@@ -1,7 +1,6 @@
 #include "Generators.h"
 #include "Helpers.h"
 #include <algorithm>
-#include <bit>
 #include <cmath>
 #include <stdexcept>
 #include <span>
