@@ -27,7 +27,8 @@ internal sealed class TerrainGenerationSession : IDisposable
     public Task Completion { get; }
 
     public TerrainGenerationSession(TerrainGen.GeneratorType type, HeightmapGenAPI.CommonSettings settings,
-        HeightmapGenAPI.HydraulicErosionSettings erosion, int width, int height, int workerCount)
+        HeightmapGenAPI.HydraulicErosionSettings erosion, HeightmapGenAPI.BPGeneratorSettings bp,
+        HeightmapGenAPI.ModelErosionSettings modelErosion, int width, int height, int workerCount)
     {
         if (settings.resolution < 1 || width < 0 || height < 0)
         {
@@ -57,14 +58,16 @@ internal sealed class TerrainGenerationSession : IDisposable
         int window = Math.Max(1, Math.Min(Math.Min(count, Math.Max(1, workerCount)), bufferSlots));
         int nativeWorkers = settings.cacheable ? Math.Min(workerCount, window) : 0;
         results = new BlockingCollection<Result>(window);
-        Completion = Task.Run(() => Generate(type, settings, erosion, width, height, count, samples, window, nativeWorkers));
+        Completion = Task.Run(() => Generate(type, settings, erosion, bp, modelErosion,
+            width, height, count, samples, window, nativeWorkers));
     }
 
     public bool TryTake(out Result result) => results.TryTake(out result);
     public void Cancel() => cancellation.Cancel();
 
     private void Generate(TerrainGen.GeneratorType type, HeightmapGenAPI.CommonSettings settings,
-        HeightmapGenAPI.HydraulicErosionSettings erosion, int width, int height,
+        HeightmapGenAPI.HydraulicErosionSettings erosion, HeightmapGenAPI.BPGeneratorSettings bp,
+        HeightmapGenAPI.ModelErosionSettings modelErosion, int width, int height,
         int count, int samples, int window, int workers)
     {
         IntPtr context = IntPtr.Zero;
@@ -85,6 +88,17 @@ internal sealed class TerrainGenerationSession : IDisposable
                     break;
                 case TerrainGen.GeneratorType.BrownianNoise:
                     generator = HeightmapGenAPI.createBrownianPerlinGenerator(context, settings);
+                    break;
+                case TerrainGen.GeneratorType.BPGenerator:
+                    generator = HeightmapGenAPI.createBPGenerator(context, settings, bp);
+                    break;
+                case TerrainGen.GeneratorType.ModelErosion:
+                    var modelBaseSettings = settings;
+                    modelBaseSettings.amplitude = 1f;
+                    baseGenerator = HeightmapGenAPI.createBrownianPerlinGenerator(context, modelBaseSettings);
+                    if (baseGenerator == IntPtr.Zero) throw new InvalidOperationException("Failed to create model erosion base generator.");
+                    modelErosion.baseGeneratorImpl = baseGenerator;
+                    generator = HeightmapGenAPI.createModelErosionGenerator(context, settings, modelErosion);
                     break;
                 case TerrainGen.GeneratorType.HydraulicErosion:
                     var baseSettings = settings;

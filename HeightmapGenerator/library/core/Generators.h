@@ -1,6 +1,7 @@
 #pragma once
 #include "HeightmapGenAPI.h"
 #include "HeightmapGenContext.h"
+#include "onnxruntime_cxx_api.h"
 #include <array>
 #include <vector>
 #include <unordered_map>
@@ -112,8 +113,59 @@ class HydraulicErosionGeneratorImpl : public GeneratorImpl {
 	void generateChunkData(Vec2Int chunkPos, float* buffer) override;
 
 public:
-	HydraulicErosionGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings, const HydraulicErosionSettings& erosionSettings);
-	bool isDeterministic() override;
+    HydraulicErosionGeneratorImpl(ContextImpl* ctx, const CommonSettings& settings, const HydraulicErosionSettings& erosionSettings);
+    bool isDeterministic() override;
+};
+
+class OnnxGeneratorImpl : public GeneratorImpl {
+    std::mutex inferenceMutex;
+    Ort::Session session;
+    Ort::MemoryInfo memoryInfo;
+    Ort::IoBinding ioBinding;
+    Ort::AllocatorWithDefaultOptions allocator;
+    Ort::RunOptions runOptions;
+
+    Ort::AllocatedStringPtr inputLayerName;
+protected:
+    std::vector<int64_t> inputTensorShape;
+    std::size_t inputTensorElements;
+
+    std::vector<float> inputBuffer;
+    Ort::Value inputValue;
+
+    Ort::AllocatedStringPtr outputLayerName;
+    std::vector<int64_t> outputTensorShape;
+    std::size_t outputTensorElements;
+
+    virtual void fillInput(Vec2Int chunkPos) = 0;
+    void generateChunkData(Vec2Int chunkPos, float* buffer) override;
+    float getHeight(Vec2Int pos) override;
+
+public:
+    OnnxGeneratorImpl(ContextImpl* ctx, const CommonSettings& commonSettings, const char* modelPath);
+};
+
+/// @brief Neural-network powered terrain generator, adapted from "A step towards procedural terrain generation with GANs" 2017 Beckham, Pal
+///
+/// Paper: https://arxiv.org/abs/1707.03383
+/// Github: https://github.com/christopher-beckham/gan-heightmaps
+///
+class BPGeneratorImpl : public OnnxGeneratorImpl {
+    void fillInput(Vec2Int chunkPos) override;
+
+public:
+    BPGeneratorImpl(ContextImpl* ctx, const CommonSettings& commonSettings, const BPGeneratorSettings& bpSettings);
+    bool isDeterministic() override;
+};
+
+class ModelErosionGeneratorImpl : public OnnxGeneratorImpl {
+    std::shared_ptr<GeneratorImpl> baseGenerator;
+    void fillInput(Vec2Int chunkPos) override;
+
+public:
+    ModelErosionGeneratorImpl(ContextImpl* ctx, const CommonSettings& commonSettings, const ModelErosionSettings& modelErosionSettings);
+
+    bool isDeterministic() override;
 };
 
 class SimpleBlenderImpl : public GeneratorImpl {

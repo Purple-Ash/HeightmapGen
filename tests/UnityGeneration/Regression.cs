@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
@@ -11,6 +12,7 @@ using Debug = UnityEngine.Debug;
 static class Program
 {
     static int scenarios;
+    static readonly string ModelDirectory = Path.Combine(Path.GetTempPath(), "HeightmapGenRegression");
     static void Set(TerrainGen terrain, string name, object value) =>
         typeof(TerrainGen).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).SetValue(terrain, value);
     static void Invoke(TerrainGen terrain, string name) =>
@@ -218,6 +220,10 @@ static class Program
 
     static void Main()
     {
+        Directory.CreateDirectory(ModelDirectory);
+        File.WriteAllBytes(Path.Combine(ModelDirectory, "best_step6126.onnx"), Array.Empty<byte>());
+        File.WriteAllBytes(Path.Combine(ModelDirectory, "erosion_model.onnx"), Array.Empty<byte>());
+        UnityEngine.Application.streamingAssetsPath = ModelDirectory;
         foreach (bool dispose in new[] { false, true })
         {
             MonoBehaviour.DisposeOnStop = dispose;

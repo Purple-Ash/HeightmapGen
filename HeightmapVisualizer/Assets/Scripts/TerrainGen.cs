@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using Stopwatch = System.Diagnostics.Stopwatch;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -11,7 +12,9 @@ public class TerrainGen : MonoBehaviour
     {
         HydraulicErosion,
         Perlin,
-        BrownianNoise
+        BrownianNoise,
+        BPGenerator,
+        ModelErosion
     }
 
     [Header("Terrain Common Settings")]
@@ -26,6 +29,14 @@ public class TerrainGen : MonoBehaviour
 
     [Header("Generation Scheduling")]
     [Range(0, 64)][SerializeField] private int workerAmount = 3;
+
+    [Header("BP Generator Settings")]
+    [Tooltip("ONNX model path, either absolute or relative to StreamingAssets. Resolution must match the model output.")]
+    [SerializeField] private string bpModelPath = "best_step6126.onnx";
+
+    [Header("Model Erosion Settings")]
+    [Tooltip("ONNX model path, either absolute or relative to StreamingAssets. Resolution must match the model output.")]
+    [SerializeField] private string erosionModelPath = "erosion_model.onnx";
 
     [Header("Hydraulic Erosion Settings")]
     [SerializeField] private int erosionSeed;
@@ -203,6 +214,17 @@ public class TerrainGen : MonoBehaviour
             initialWaterVolume = initialWaterVolume
         };
 
+        string resolvedBPModelPath = ResolveModelPath(bpModelPath);
+        string resolvedErosionModelPath = ResolveModelPath(erosionModelPath);
+        HeightmapGenAPI.BPGeneratorSettings bpSettings = new HeightmapGenAPI.BPGeneratorSettings
+        {
+            modelPath = resolvedBPModelPath
+        };
+        HeightmapGenAPI.ModelErosionSettings modelErosionSettings = new HeightmapGenAPI.ModelErosionSettings
+        {
+            modelPath = resolvedErosionModelPath
+        };
+
         int generationWorkerCount = workerAmount;
 
         try
@@ -219,10 +241,25 @@ public class TerrainGen : MonoBehaviour
                 yield break;
             }
 
+            if (generationType == GeneratorType.BPGenerator &&
+                (resolvedBPModelPath == null || !File.Exists(resolvedBPModelPath)))
+            {
+                Debug.LogError($"BP Generator ONNX model not found: {resolvedBPModelPath ?? "(empty path)"}");
+                yield break;
+            }
+
+            if (generationType == GeneratorType.ModelErosion &&
+                (resolvedErosionModelPath == null || !File.Exists(resolvedErosionModelPath)))
+            {
+                Debug.LogError($"Model erosion ONNX model not found: {resolvedErosionModelPath ?? "(empty path)"}");
+                yield break;
+            }
+
             try
             {
                 generationSession = new TerrainGenerationSession(generationType, commonSettings, erosionSettings,
-                    generationChunkCount.x, generationChunkCount.y, generationWorkerCount);
+                    bpSettings, modelErosionSettings, generationChunkCount.x, generationChunkCount.y,
+                    generationWorkerCount);
             }
             catch (Exception exception)
             {
@@ -268,6 +305,14 @@ public class TerrainGen : MonoBehaviour
 
             }
         }
+    }
+
+    private static string ResolveModelPath(string modelPath)
+    {
+        if (string.IsNullOrWhiteSpace(modelPath)) return null;
+        return Path.IsPathRooted(modelPath)
+            ? modelPath
+            : Path.Combine(Application.streamingAssetsPath, modelPath);
     }
 
     private void ApplyResult(TerrainGenerationSession.Result result, GameObject prefab,

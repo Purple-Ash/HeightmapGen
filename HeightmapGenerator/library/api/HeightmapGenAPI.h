@@ -14,8 +14,7 @@
 typedef struct ContextImpl* Context;
 typedef struct GeneratorImpl* Generator;
 
-struct CommonSettings
-{
+struct CommonSettings {
 	uint64_t seed;
 	float scale;
 	float amplitude;
@@ -23,8 +22,7 @@ struct CommonSettings
 	bool cacheable;
 };
 
-struct HydraulicErosionSettings
-{
+struct HydraulicErosionSettings {
 	int32_t seed = 0;
 	int32_t numIterations = 1;
 	int32_t erosionRadius = 3;
@@ -40,6 +38,15 @@ struct HydraulicErosionSettings
 	float initialSpeed = 1.0f;
 	float initialWaterVolume = 1.0f;
 	Generator baseGeneratorImpl = nullptr;
+};
+
+struct BPGeneratorSettings {
+	const char* modelPath = nullptr;
+};
+
+struct ModelErosionSettings {
+	Generator baseGeneratorImpl = nullptr;
+	const char* modelPath = nullptr;
 };
 
 struct BlenderSettings 
@@ -62,6 +69,8 @@ extern "C" {
 	HG_API Generator createBlenderGenerator(Context ctx, CommonSettings commonSettings, BlenderSettings blenderSettings);
 	HG_API Generator createPerlinGenerator(Context ctx, CommonSettings commonSettings);
 	HG_API Generator createBrownianPerlinGenerator(Context ctx, CommonSettings commonSettings);
+	HG_API Generator createBPGenerator(Context ctx, CommonSettings commonSettings, BPGeneratorSettings bpSettings);
+	HG_API Generator createModelErosionGenerator(Context ctx, CommonSettings commonSettings, ModelErosionSettings modelErosionSettings);
 	HG_API void destroyGenerator(Generator generator);
 
 	HG_API void getChunk(Generator generator, int32_t x, int32_t y, float* buffer);

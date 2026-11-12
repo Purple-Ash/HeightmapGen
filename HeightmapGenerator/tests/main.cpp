@@ -209,9 +209,133 @@ TEST(CoreTests, GetChunks5by5_Using_getChunk_and_getPoint){
 	destroyContext(ctx);
 }
 
+TEST(OrtModelTests, BPModelInvalidPathTest) {
+    Context ctx = createContext(0);
+    CommonSettings commonSettings{42, 1.0f, 1.0f, 3, true};
+
+    const char* invalidPaths[] = {
+        nullptr,
+        "missing.onnx",
+    };
+    for (const char* modelPath : invalidPaths) {
+        Generator gen = nullptr;
+        EXPECT_NO_THROW(gen = createBPGenerator(ctx, commonSettings, BPGeneratorSettings{ modelPath }));
+        EXPECT_EQ(gen, nullptr);
+        destroyGenerator(gen);
+    }
+
+    // Failed loads must leave the context usable for subsequent creation.
+    Generator gen = createBPGenerator(ctx, commonSettings, BPGeneratorSettings{ "identity.onnx" });
+    EXPECT_NE(gen, nullptr);
+    destroyContext(ctx);
+}
+
+TEST(OrtModelTests, BPModelSmokeTest) {
+    Context ctx = createContext(0);
+    CommonSettings commonSettings{};
+    commonSettings.resolution = 3;
+    commonSettings.scale = 1.0f;
+    commonSettings.cacheable = true;
+    
+    const char* modelPath = "identity.onnx";
+
+    Generator gen = createBPGenerator(ctx, commonSettings, BPGeneratorSettings{ modelPath });
+    ASSERT_NE(gen, nullptr);
+
+    std::vector<float> chunkData(commonSettings.resolution * commonSettings.resolution);
+    getChunk(gen, 1, 1, chunkData.data());
+
+    float pointSample = getPoint(gen, 10, 10);
+    (void)pointSample;
+
+    destroyGenerator(gen);
+    destroyContext(ctx);
+}
+
+TEST(OrtModelTests, BPModelSeedDeterminism) {
+    Context ctx = createContext(0);
+    CommonSettings settings{42, 1.0f, 1.0f, 3, false};
+    Generator first = createBPGenerator(ctx, settings, BPGeneratorSettings{ "identity.onnx" });
+    Generator second = createBPGenerator(ctx, settings, BPGeneratorSettings{ "identity.onnx" });
+    settings.seed += uint64_t{1} << 32;
+    Generator differentSeed = createBPGenerator(ctx, settings, BPGeneratorSettings{ "identity.onnx" });
+    ASSERT_NE(first, nullptr);
+    ASSERT_NE(second, nullptr);
+    ASSERT_NE(differentSeed, nullptr);
+
+    std::vector<float> expected(9), actual(9), otherChunk(9);
+    getChunk(first, -2, 3, expected.data());
+    getChunk(first, 3, -2, otherChunk.data());
+    EXPECT_NE(expected, otherChunk);
+    getChunk(first, -2, 3, actual.data());
+    EXPECT_EQ(expected, actual);
+    getChunk(second, 3, -2, actual.data());
+    EXPECT_EQ(otherChunk, actual);
+    getChunk(second, -2, 3, actual.data());
+    EXPECT_EQ(expected, actual);
+    EXPECT_EQ(getPoint(first, -3, 7), expected[4]);
+    getChunk(differentSeed, -2, 3, actual.data());
+    EXPECT_NE(expected, actual);
+
+    settings.seed = 42;
+    settings.cacheable = true;
+    Generator cached = createBPGenerator(ctx, settings, BPGeneratorSettings{ "identity.onnx" });
+    ASSERT_NE(cached, nullptr);
+    getChunk(cached, -2, 3, actual.data());
+    EXPECT_EQ(expected, actual);
+    cleanChunkFromCache(cached, -2, 3);
+    getChunk(cached, -2, 3, actual.data());
+    EXPECT_EQ(expected, actual);
+    destroyContext(ctx);
+}
+
+TEST(OrtModelTests, BPModelSizeMismatchTest) {
+    Context ctx = createContext(0);
+    CommonSettings commonSettings{};
+    commonSettings.resolution = 10;
+    commonSettings.scale = 1.0f;
+    commonSettings.cacheable = true;
+    
+    const char* modelPath = "identity.onnx";
+    Generator gen = createBPGenerator(ctx, commonSettings, BPGeneratorSettings{ modelPath });
+    ASSERT_EQ(gen, nullptr);
+    destroyContext(ctx);
+}
+
+TEST(OrtModelTests, BPModelThreadedOutputMatchesSerial) {
+    Context ctx = createContext(4);
+    CommonSettings settings{42, 1.0f, 1.0f, 3, false};
+    Generator serial = createBPGenerator(ctx, settings, BPGeneratorSettings{ "identity.onnx" });
+    settings.cacheable = true;
+    Generator threaded = createBPGenerator(ctx, settings, BPGeneratorSettings{ "identity.onnx" });
+    ASSERT_NE(serial, nullptr);
+    ASSERT_NE(threaded, nullptr);
+
+    constexpr int chunkCount = 64;
+    std::vector<std::vector<float>> expected(chunkCount, std::vector<float>(9));
+    for (int i = 0; i < chunkCount; i++) {
+        getChunk(serial, i - 32, 3 - i, expected[i].data());
+    }
+    for (int i = 0; i < chunkCount; i++) {
+        requestChunk(threaded, i - 32, 3 - i);
+    }
+    for (int i = 0; i < chunkCount; i++) {
+        std::vector<float> actual(9);
+        getChunk(threaded, i - 32, 3 - i, actual.data());
+        EXPECT_EQ(expected[i], actual) << "Chunk " << i;
+    }
+
+    // Removal must also safely drain queued inference jobs.
+    for (int i = 0; i < chunkCount; i++) {
+        requestChunk(threaded, i + 64, i);
+    }
+    destroyGenerator(threaded);
+    destroyContext(ctx);
+}
+
 TEST(CoreTests, HydraulicErosionGeneratorTest) {
-	Context ctx = createContext(0);
-	CommonSettings commonSettings{ 1, 5.0f, 1.0f, 16, true };
+    Context ctx = createContext(0);
+    CommonSettings commonSettings{1, 5.0f, 1.0f, 16, true};
 
 	CommonSettings baseSettings = commonSettings;
 	baseSettings.amplitude = 1.0f;
@@ -568,7 +692,7 @@ TEST(BlenderTests, BlenderGetPointMatchesChunkWithinBlendingRadius) {
 	destroyContext(ctx);
 }
 
-int main(int argc, char** argv) { 
+int main(int argc, char** argv) {
 	::testing::InitGoogleTest(&argc, argv);
 	int result = RUN_ALL_TESTS();
 	return result;

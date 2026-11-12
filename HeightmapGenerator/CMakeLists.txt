@@ -8,6 +8,10 @@ find_package(Threads REQUIRED)
 
 include(FetchContent)
 
+# ------------------------------------------------------------
+# GoogleTest
+# ------------------------------------------------------------
+
 FetchContent_Declare(
     googletest
     URL https://github.com/google/googletest/archive/refs/tags/v1.17.0.zip
@@ -16,8 +20,17 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
+# ------------------------------------------------------------
+# ONNX Runtime
+# ------------------------------------------------------------
+
+include(cmake/OnnxRuntime.cmake)
+
+# ------------------------------------------------------------
+# HeightmapGen
+# ------------------------------------------------------------
+
 file(GLOB_RECURSE  LIBRARY_SOURCES library/*.cpp)
-file(GLOB_RECURSE  TEST_SOURCES tests/*.cpp)
 
 add_library(HeightmapGen SHARED
     ${LIBRARY_SOURCES}
@@ -34,9 +47,17 @@ target_include_directories(HeightmapGen
     PRIVATE ${CMAKE_SOURCE_DIR}/library/core
 )
 
-add_executable(Tests
-    ${TEST_SOURCES}
+target_link_libraries(HeightmapGen
+    PUBLIC onnxruntime::onnxruntime
 )
+copy_onnxruntime(HeightmapGen)
+if(UNIX)
+    set_target_properties(HeightmapGen PROPERTIES BUILD_RPATH "$ORIGIN")
+endif()
+
+# ------------------------------------------------------------
+# Viewer
+# ------------------------------------------------------------
 
 if (HEIGHTMAP_BUILD_VIEWER)
 	add_executable(view
@@ -70,10 +91,21 @@ if (HEIGHTMAP_BUILD_VIEWER)
 			${winx_SOURCE_DIR}
 			${GLAD_INCLUDE_DIRS}
 	)
+    copy_onnxruntime(view)
 endif()
+
+# ------------------------------------------------------------
+# Tests
+# ------------------------------------------------------------
+
+file(GLOB_RECURSE TEST_SOURCES tests/*.cpp)
+add_executable(Tests ${TEST_SOURCES})
 
 target_link_libraries(Tests PRIVATE
     HeightmapGen
     GTest::gtest_main
     Threads::Threads
 )
+copy_onnxruntime(Tests)
+
+configure_file(tests/models/identity.onnx "identity.onnx" COPYONLY)
