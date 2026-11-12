@@ -51,8 +51,8 @@ struct ModelErosionSettings {
 
 struct BlenderSettings 
 {
-    int32_t blendingRadius; // over how many points inward from the edge is the terrain blended
-    int32_t edgeSamplingRadius; // how many points inward from the edge are used to calculate new edge height
+    int32_t blendingRadius = 10; // over how many points inward from the edge is the terrain blended
+    int32_t edgeSamplingRadius = 4; // how many points inward from the edge are used to calculate new edge height
 	Generator baseGeneratorImpl = nullptr;
 };
 

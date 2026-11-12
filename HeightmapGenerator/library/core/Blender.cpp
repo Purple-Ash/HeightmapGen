@@ -219,6 +219,16 @@ SimpleBlenderImpl::SimpleBlenderImpl(ContextImpl* ctx, const CommonSettings& com
 	}
 }
 
+void SimpleBlenderImpl::requestChunk(Vec2Int pos, bool forceSingleThreaded) {
+    for (int32_t x = -1; x <= 1; x++) {
+        for (int32_t y = -1; y <= 1; y++) {
+            baseGenerator->requestChunk(pos + Vec2Int{ x, y }, forceSingleThreaded);
+        }
+    }
+
+    GeneratorImpl::requestChunk(pos, forceSingleThreaded);
+}
+
 std::shared_ptr<SimpleBlenderImpl::BlenderChunkData> SimpleBlenderImpl::getBlenderChunkData(Vec2Int pos) {
     auto it = maskCache.find(pos);
     if (it != maskCache.end()) {
@@ -231,6 +241,7 @@ std::shared_ptr<SimpleBlenderImpl::BlenderChunkData> SimpleBlenderImpl::getBlend
     baseGenerator->getChunk(pos, data->chunk.data(), true);
 
     maskCache[pos] = data;
+    baseGenerator->cleanChunkFromCache(pos);
     return data;
 }
 
@@ -408,11 +419,13 @@ bool SimpleBlenderImpl::isDeterministic() {
 void SimpleBlenderImpl::cleanChunkFromCache(Vec2Int pos) {
 	std::lock_guard lock(blenderMutex);
 	GeneratorImpl::cleanChunkFromCache(pos);
+    baseGenerator->cleanChunkFromCache(pos);
 	maskCache.clear();
 }
 
 void SimpleBlenderImpl::clearAllCache() {
 	std::lock_guard lock(blenderMutex);
 	GeneratorImpl::clearAllCache();
+    baseGenerator->clearAllCache();
     maskCache.clear();
 }
