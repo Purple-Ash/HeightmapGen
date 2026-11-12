@@ -241,7 +241,6 @@ std::shared_ptr<SimpleBlenderImpl::BlenderChunkData> SimpleBlenderImpl::getBlend
     baseGenerator->getChunk(pos, data->chunk.data(), true);
 
     maskCache[pos] = data;
-    baseGenerator->cleanChunkFromCache(pos);
     return data;
 }
 

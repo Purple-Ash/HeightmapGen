@@ -70,6 +70,19 @@ Generator createHydraulicErosion(float scale, float amplitude, Generator generat
 	return createHydraulicErosionGenerator(ctx, settings, hes);
 }
 
+Generator createBlender(float scale, float amplitude, Generator baseGenerator) {
+	CommonSettings settings {};
+	settings.seed = 42;
+	settings.scale = scale;
+	settings.amplitude = amplitude;
+	settings.resolution = 200;
+	settings.cacheable = true;
+
+	BlenderSettings blenderSettings {};
+	blenderSettings.baseGeneratorImpl = baseGenerator;
+	return createBlenderGenerator(ctx, settings, blenderSettings);
+}
+
 Generator createBPGenerator(int resolution, float amplitude, const char* modelPath) {
 	CommonSettings settings {};
 	settings.seed = 8;
@@ -111,6 +124,7 @@ static std::vector<Sampler> samplers = {
 		.modelPath = "erosion_model.onnx"
 	}), "Model Erosion Generator"},
 	{createHydraulicErosion(0.01, 1, createSimple(createBrownianPerlinGenerator, 0.01, 1)), "Hydraulic Erosion Generator"},
+	{createBlender(0.01f, 1, createHydraulicErosion(0.01, 1, createSimple(createBrownianPerlinGenerator, 0.01, 1))), "Hydraulic Erosion Generator with Blender"},
 };
 
 void window_close_handler() {
