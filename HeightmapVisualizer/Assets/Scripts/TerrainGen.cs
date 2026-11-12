@@ -38,6 +38,13 @@ public class TerrainGen : MonoBehaviour
     [Tooltip("ONNX model path, either absolute or relative to StreamingAssets. Resolution must match the model output.")]
     [SerializeField] private string erosionModelPath = "erosion_model.onnx";
 
+    [Header("Blender")]
+    [Tooltip("Blend chunk edges using the selected generator as the source.")]
+    [SerializeField] private bool useBlender;
+    [Header("Blender Settings")]
+    [Min(1)][SerializeField] private int blendingRadius = 3;
+    [Min(1)][SerializeField] private int edgeSamplingRadius = 2;
+
     [Header("Hydraulic Erosion Settings")]
     [SerializeField] private int erosionSeed;
     [Min(0)][SerializeField] private int erosionIterations = 10;
@@ -188,6 +195,7 @@ public class TerrainGen : MonoBehaviour
         float generationScale = scale;
         GameObject generationChunkObject = chunkObject;
         GeneratorType generationType = generatorType;
+        bool generationUsesBlender = useBlender;
         HeightmapGenAPI.CommonSettings commonSettings = new HeightmapGenAPI.CommonSettings
         {
             seed = seed,
@@ -224,6 +232,11 @@ public class TerrainGen : MonoBehaviour
         {
             modelPath = resolvedErosionModelPath
         };
+        HeightmapGenAPI.BlenderSettings blenderSettings = new HeightmapGenAPI.BlenderSettings
+        {
+            blendingRadius = blendingRadius,
+            edgeSamplingRadius = edgeSamplingRadius
+        };
 
         int generationWorkerCount = workerAmount;
 
@@ -258,7 +271,8 @@ public class TerrainGen : MonoBehaviour
             try
             {
                 generationSession = new TerrainGenerationSession(generationType, commonSettings, erosionSettings,
-                    bpSettings, modelErosionSettings, generationChunkCount.x, generationChunkCount.y,
+                    bpSettings, modelErosionSettings, generationUsesBlender, blenderSettings,
+                    generationChunkCount.x, generationChunkCount.y,
                     generationWorkerCount);
             }
             catch (Exception exception)

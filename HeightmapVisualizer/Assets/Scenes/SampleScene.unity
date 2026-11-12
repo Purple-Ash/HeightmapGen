@@ -577,9 +577,12 @@ MonoBehaviour:
   seed: 0
   cacheable: 1
   generatorType: 0
-  workerAmount: 3
+  workerAmount: 4
   bpModelPath: best_step6126.onnx
   erosionModelPath: erosion_model.onnx
+  useBlender: 1
+  blendingRadius: 10
+  edgeSamplingRadius: 4
   erosionSeed: 0
   erosionIterations: 3
   erosionRadius: 5

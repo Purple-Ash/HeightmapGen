@@ -29,6 +29,16 @@ internal sealed class TerrainGenerationSession : IDisposable
     public TerrainGenerationSession(TerrainGen.GeneratorType type, HeightmapGenAPI.CommonSettings settings,
         HeightmapGenAPI.HydraulicErosionSettings erosion, HeightmapGenAPI.BPGeneratorSettings bp,
         HeightmapGenAPI.ModelErosionSettings modelErosion, int width, int height, int workerCount)
+        : this(type, settings, erosion, bp, modelErosion, false,
+            new HeightmapGenAPI.BlenderSettings(), width, height, workerCount)
+    {
+    }
+
+    public TerrainGenerationSession(TerrainGen.GeneratorType type, HeightmapGenAPI.CommonSettings settings,
+        HeightmapGenAPI.HydraulicErosionSettings erosion, HeightmapGenAPI.BPGeneratorSettings bp,
+        HeightmapGenAPI.ModelErosionSettings modelErosion, bool useBlender,
+        HeightmapGenAPI.BlenderSettings blender,
+        int width, int height, int workerCount)
     {
         if (settings.resolution < 1 || width < 0 || height < 0)
         {
@@ -50,6 +60,12 @@ internal sealed class TerrainGenerationSession : IDisposable
                 throw new ArgumentOutOfRangeException(nameof(erosion));
             }
         }
+        if (useBlender &&
+            (blender.blendingRadius < 1 || blender.blendingRadius > settings.resolution / 2 ||
+             blender.edgeSamplingRadius < 1 || blender.edgeSamplingRadius > settings.resolution))
+        {
+            throw new ArgumentOutOfRangeException(nameof(blender));
+        }
 
         // Account for both queued managed results and cached native outputs
         // A single large chunk may exceed this budget
@@ -58,7 +74,7 @@ internal sealed class TerrainGenerationSession : IDisposable
         int window = Math.Max(1, Math.Min(Math.Min(count, Math.Max(1, workerCount)), bufferSlots));
         int nativeWorkers = settings.cacheable ? Math.Min(workerCount, window) : 0;
         results = new BlockingCollection<Result>(window);
-        Completion = Task.Run(() => Generate(type, settings, erosion, bp, modelErosion,
+        Completion = Task.Run(() => Generate(type, settings, erosion, bp, modelErosion, useBlender, blender,
             width, height, count, samples, window, nativeWorkers));
     }
 
@@ -67,11 +83,14 @@ internal sealed class TerrainGenerationSession : IDisposable
 
     private void Generate(TerrainGen.GeneratorType type, HeightmapGenAPI.CommonSettings settings,
         HeightmapGenAPI.HydraulicErosionSettings erosion, HeightmapGenAPI.BPGeneratorSettings bp,
-        HeightmapGenAPI.ModelErosionSettings modelErosion, int width, int height,
+        HeightmapGenAPI.ModelErosionSettings modelErosion, bool useBlender,
+        HeightmapGenAPI.BlenderSettings blender,
+        int width, int height,
         int count, int samples, int window, int workers)
     {
         IntPtr context = IntPtr.Zero;
         IntPtr generator = IntPtr.Zero;
+        IntPtr blenderBaseGenerator = IntPtr.Zero;
         IntPtr baseGenerator = IntPtr.Zero;
         CancellationToken token = cancellation.Token;
         try
@@ -113,6 +132,16 @@ internal sealed class TerrainGenerationSession : IDisposable
                     throw new ArgumentOutOfRangeException(nameof(type));
             }
             if (generator == IntPtr.Zero) throw new InvalidOperationException("Failed to create terrain generator.");
+
+            if (useBlender)
+            {
+                blender.baseGeneratorImpl = generator;
+                IntPtr selectedGenerator = generator;
+                IntPtr blenderGenerator = HeightmapGenAPI.createBlenderGenerator(context, settings, blender);
+                if (blenderGenerator == IntPtr.Zero) throw new InvalidOperationException("Failed to create Blender generator.");
+                blenderBaseGenerator = selectedGenerator;
+                generator = blenderGenerator;
+            }
 
             if (!settings.cacheable || workers == 0)
             {
@@ -176,22 +205,29 @@ internal sealed class TerrainGenerationSession : IDisposable
             {
                 try
                 {
-                    if (baseGenerator != IntPtr.Zero) HeightmapGenAPI.destroyGenerator(baseGenerator);
+                    if (blenderBaseGenerator != IntPtr.Zero) HeightmapGenAPI.destroyGenerator(blenderBaseGenerator);
                 }
                 finally
                 {
                     try
                     {
-                        if (context != IntPtr.Zero) HeightmapGenAPI.destroyContext(context);
+                        if (baseGenerator != IntPtr.Zero) HeightmapGenAPI.destroyGenerator(baseGenerator);
                     }
                     finally
                     {
-                        if (token.IsCancellationRequested)
+                        try
                         {
-                            while (results.TryTake(out _)) { }
+                            if (context != IntPtr.Zero) HeightmapGenAPI.destroyContext(context);
                         }
+                        finally
+                        {
+                            if (token.IsCancellationRequested)
+                            {
+                                while (results.TryTake(out _)) { }
+                            }
 
-                        results.CompleteAdding();
+                            results.CompleteAdding();
+                        }
                     }
                 }
             }
