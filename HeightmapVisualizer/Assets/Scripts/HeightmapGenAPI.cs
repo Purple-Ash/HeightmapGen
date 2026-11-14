@@ -78,6 +78,12 @@ public static class HeightmapGenAPI
         public string modelPath;
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GeneratorRequirements
+    {
+        public int resolution;
+    }
+
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
     public static extern IntPtr smokeTest([MarshalAs(UnmanagedType.LPStr)] string data);
 
@@ -104,6 +110,11 @@ public static class HeightmapGenAPI
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr createBlenderGenerator(IntPtr ctx, CommonSettings commonSettings, BlenderSettings blenderSettings);
+
+    [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    public static extern bool queryModelRequirements(IntPtr ctx,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string modelPath, out GeneratorRequirements requirements);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
     public static extern void destroyGenerator(IntPtr generator);

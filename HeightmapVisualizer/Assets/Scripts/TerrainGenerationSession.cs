@@ -26,6 +26,35 @@ internal sealed class TerrainGenerationSession : IDisposable
     private readonly BlockingCollection<Result> results;
     public Task Completion { get; }
 
+    public static Task<HeightmapGenAPI.GeneratorRequirements> QueryModelRequirementsAsync(string modelPath)
+    {
+        return Task.Run(() =>
+        {
+            IntPtr context = HeightmapGenAPI.createContext(0);
+            if (context == IntPtr.Zero)
+            {
+                throw new InvalidOperationException("Failed to create a context to query ONNX model requirements.");
+            }
+
+            try
+            {
+                if (!HeightmapGenAPI.queryModelRequirements(context, modelPath, out var requirements))
+                {
+                    throw new InvalidOperationException($"Could not read ONNX model requirements: {modelPath}");
+                }
+                if (requirements.resolution < 1)
+                {
+                    throw new InvalidOperationException($"ONNX model does not report a fixed output resolution: {modelPath}");
+                }
+                return requirements;
+            }
+            finally
+            {
+                HeightmapGenAPI.destroyContext(context);
+            }
+        });
+    }
+
     public TerrainGenerationSession(TerrainGen.GeneratorType type, HeightmapGenAPI.CommonSettings settings,
         HeightmapGenAPI.HydraulicErosionSettings erosion, HeightmapGenAPI.BPGeneratorSettings bp,
         HeightmapGenAPI.ModelErosionSettings modelErosion, int width, int height, int workerCount)

@@ -23,6 +23,7 @@ public static class HeightmapGenAPI
     public struct BlenderSettings { public int blendingRadius, edgeSamplingRadius; public IntPtr baseGeneratorImpl; }
     public struct BPGeneratorSettings { public string modelPath; }
     public struct ModelErosionSettings { public IntPtr baseGeneratorImpl; public string modelPath; }
+    public struct GeneratorRequirements { public int resolution; }
     sealed class Context
     {
         public int Workers;
@@ -77,6 +78,12 @@ public static class HeightmapGenAPI
     public static IntPtr createBrownianPerlinGenerator(IntPtr context, CommonSettings settings) => createPerlinGenerator(context, settings);
     public static IntPtr createBPGenerator(IntPtr context, CommonSettings settings, BPGeneratorSettings bp) =>
         createPerlinGenerator(context, settings);
+    public static bool queryModelRequirements(IntPtr context, string modelPath, out GeneratorRequirements requirements)
+    {
+        Entry();
+        requirements = new GeneratorRequirements { resolution = 8 };
+        return contexts.ContainsKey(context) && !string.IsNullOrWhiteSpace(modelPath);
+    }
     public static IntPtr createModelErosionGenerator(IntPtr context, CommonSettings settings, ModelErosionSettings modelErosion)
     {
         Check.That(generators.ContainsKey(modelErosion.baseGeneratorImpl), "model erosion base missing");
