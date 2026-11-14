@@ -14,6 +14,7 @@ public class CameraMovement : MonoBehaviour
     private float yaw;
     private bool cursorLocked;
     private QuitConfirmationDialog quitDialog;
+    private TerrainRuntimeSettingsUI runtimeSettingsUI;
 
     void Start()
     {
@@ -22,6 +23,7 @@ public class CameraMovement : MonoBehaviour
         SetCursorLocked(true);
         quitDialog = GetComponent<QuitConfirmationDialog>();
         if (quitDialog == null) quitDialog = gameObject.AddComponent<QuitConfirmationDialog>();
+        runtimeSettingsUI = FindFirstObjectByType<TerrainRuntimeSettingsUI>();
     }
 
     void Update()
@@ -29,6 +31,11 @@ public class CameraMovement : MonoBehaviour
         if (Keyboard.current == null || Mouse.current == null)
         {
             Debug.LogWarning("No mouse :(");
+            return;
+        }
+
+        if (runtimeSettingsUI != null && runtimeSettingsUI.EscapeRestoredUiThisFrame)
+        {
             return;
         }
 
@@ -108,10 +115,10 @@ public class CameraMovement : MonoBehaviour
         SetCursorLocked(false);
     }
 
-    private void SetCursorLocked(bool isLocaked)
+    public void SetCursorLocked(bool isLocked)
     {
-        cursorLocked = isLocaked;
-        Cursor.lockState = isLocaked ? CursorLockMode.Locked : CursorLockMode.None;
-        Cursor.visible = !isLocaked;
+        cursorLocked = isLocked;
+        Cursor.lockState = isLocked ? CursorLockMode.Locked : CursorLockMode.None;
+        Cursor.visible = !isLocked;
     }
 }

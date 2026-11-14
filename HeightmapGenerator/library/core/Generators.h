@@ -14,6 +14,7 @@ private:
 	struct ChunkData {
 		std::vector<float> data{};
 		bool ready = false;
+		bool started = false;
 	};
 	std::mutex dataMutex;
 	std::condition_variable jobsFinished;
@@ -22,7 +23,7 @@ private:
 	std::atomic<bool> drain{false};
 
 	std::shared_ptr<ChunkData> requestChunkImpl(Vec2Int pos, bool forceSingleThreaded);
-	void runChunkJob(Vec2Int pos, std::shared_ptr<ChunkData> chunk);
+	void runChunkJob(Vec2Int pos, std::shared_ptr<ChunkData> chunk, bool alreadyStarted);
 	std::shared_ptr<ChunkData> getChunkData(Vec2Int pos, bool forceSingleThreaded);
 	float pointFromChunk(Vec2Int pos, const std::vector<float>& data) const;
 
@@ -39,7 +40,7 @@ public:
 
 	void getChunk(Vec2Int pos, float* buffer, bool forceSingleThreaded = false);
 	float getPoint(Vec2Int pos, bool forceSingleThreaded = false);
-	void requestChunk(Vec2Int pos, bool forceSingleThreaded = false);
+	virtual void requestChunk(Vec2Int pos, bool forceSingleThreaded = false);
 	void requestPoint(Vec2Int pos, bool forceSingleThreaded = false);
 	bool probeChunk(Vec2Int pos, float* buffer);
 	bool probePoint(Vec2Int pos, float* point);
@@ -143,6 +144,8 @@ protected:
 
 public:
     OnnxGeneratorImpl(ContextImpl* ctx, const CommonSettings& commonSettings, const char* modelPath);
+
+	static bool queryModelRequirements(const char* modelPath, GeneratorRequirements* outRequirements);
 };
 
 /// @brief Neural-network powered terrain generator, adapted from "A step towards procedural terrain generation with GANs" 2017 Beckham, Pal
@@ -192,6 +195,7 @@ protected:
 
 public:
 	SimpleBlenderImpl(ContextImpl* ctx, const CommonSettings& settings, const BlenderSettings& blenderSettings);
+	void requestChunk(Vec2Int pos, bool forceSingleThreaded = false) override;
     	
 	bool isDeterministic() override;
 	void cleanChunkFromCache(Vec2Int pos) override;

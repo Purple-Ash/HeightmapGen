@@ -18,6 +18,16 @@ void write_image_data(void* data, int w, int h, Sampler& sampler) {
 
 	printf("Generating image for sampler: '%s'\n", sampler.name);
 	std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+	CommonSettings commonSettings{};
+	getCommonSettings(sampler.generator, &commonSettings);
+	const int stride = std::max(commonSettings.resolution - 1, 1);
+	const int lastChunkX = (w - 1) / stride;
+	const int lastChunkY = (h - 1) / stride;
+	for (int chunkY = 0; chunkY <= lastChunkY; chunkY++) {
+		for (int chunkX = 0; chunkX <= lastChunkX; chunkX++) {
+			requestChunk(sampler.generator, chunkX, chunkY);
+		}
+	}
 
 	for (int y = 0; y < h; y ++) {
 		for (int x = 0; x < w; x ++) {
@@ -70,12 +80,31 @@ Generator createHydraulicErosion(float scale, float amplitude, Generator generat
 	return createHydraulicErosionGenerator(ctx, settings, hes);
 }
 
-Generator createBPGenerator(int resolution, float amplitude, const char* modelPath) {
+Generator createBlender(float scale, float amplitude, Generator baseGenerator) {
+	CommonSettings settings {};
+	settings.seed = 42;
+	settings.scale = scale;
+	settings.amplitude = amplitude;
+	settings.resolution = 200;
+	settings.cacheable = true;
+
+	BlenderSettings blenderSettings {};
+	blenderSettings.baseGeneratorImpl = baseGenerator;
+	return createBlenderGenerator(ctx, settings, blenderSettings);
+}
+
+Generator createBPGenerator(float amplitude, const char* modelPath) {
+	GeneratorRequirements requirements{};
+	if (!queryModelRequirements(ctx, modelPath, &requirements)) {
+		printf("Failed to query model requirements for BPGenerator with model path: %s\n", modelPath);
+		return nullptr;
+	}
+
 	CommonSettings settings {};
 	settings.seed = 8;
 	settings.scale = 1.0f;
 	settings.amplitude = amplitude;
-	settings.resolution = resolution;
+	settings.resolution = requirements.resolution;
 	settings.cacheable = true;
 	Generator gen = createBPGenerator(ctx, settings, BPGeneratorSettings{ modelPath });
 	if (!gen) {
@@ -84,12 +113,18 @@ Generator createBPGenerator(int resolution, float amplitude, const char* modelPa
 	return gen;
 }
 
-Generator createModelErosion(int resolution, float amplitude, ModelErosionSettings modelErosionSettings) {
+Generator createModelErosion(float amplitude, ModelErosionSettings modelErosionSettings) {
+	GeneratorRequirements requirements{};
+	if (!queryModelRequirements(ctx, modelErosionSettings.modelPath, &requirements)) {
+		printf("Failed to query model requirements for BPGenerator with model path: %s\n", modelErosionSettings.modelPath);
+		return nullptr;
+	}
+
 	CommonSettings settings{};
 	settings.seed = 42;
 	settings.scale = 1.0f;
 	settings.amplitude = amplitude;
-	settings.resolution = resolution;
+	settings.resolution = requirements.resolution;
 	settings.cacheable = true;
 
 	Generator generator = createModelErosionGenerator(ctx, settings, modelErosionSettings);
@@ -105,12 +140,13 @@ static std::vector<Sampler> samplers = {
 	{createSimple(createVoronoiGenerator, 0.03, 1), "Voronoi Generator"},
 	{createSimple(createPerlinGenerator, 0.05, 1), "Perlin Generator"},
 	{createSimple(createBrownianPerlinGenerator, 0.01, 1), "Brownian Perlin Generator"},
-	{createBPGenerator(512, 1, "best_step6126.onnx"), "BP Generator (best_step6126.onnx)"},
-	{createModelErosion(128, 1, {
+	{createBPGenerator(1, "best_step6126.onnx"), "BP Generator (best_step6126.onnx)"},
+	{createModelErosion(1, {
 		.baseGeneratorImpl = createSimple(createBrownianPerlinGenerator, 0.01, 1),
 		.modelPath = "erosion_model.onnx"
 	}), "Model Erosion Generator"},
 	{createHydraulicErosion(0.01, 1, createSimple(createBrownianPerlinGenerator, 0.01, 1)), "Hydraulic Erosion Generator"},
+	{createBlender(0.01f, 1, createHydraulicErosion(0.01, 1, createSimple(createBrownianPerlinGenerator, 0.01, 1))), "Hydraulic Erosion Generator with Blender"},
 };
 
 void window_close_handler() {

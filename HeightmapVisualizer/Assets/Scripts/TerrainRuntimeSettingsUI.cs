@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Reflection;
 using UnityEngine;
+using UnityEngine.InputSystem;
 using UnityEngine.UI;
 
 // This script dynamically generats settings UI using C# reflection system
@@ -10,6 +11,20 @@ using UnityEngine.UI;
 [DefaultExecutionOrder(-100)]
 public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
 {
+    private readonly struct LoggedError
+    {
+        public readonly string Condition;
+        public readonly string StackTrace;
+        public readonly LogType Type;
+
+        public LoggedError(string condition, string stackTrace, LogType type)
+        {
+            Condition = condition;
+            StackTrace = stackTrace;
+            Type = type;
+        }
+    }
+
     [SerializeField] private float PanelWidth;
     [SerializeField] private float PanelMargin;
     [SerializeField] private float PanelPadding;
@@ -26,13 +41,18 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
     [SerializeField] private Color AccentColor = new Color();
     [SerializeField] private Color TextColor = new Color();
     [SerializeField] private Color MutedTextColor = new Color();
+    [Tooltip("Key to hide or show the in-game UI. Escape is reserved for restoring the UI while it is hidden.")]
+    [SerializeField] private Key toggleUiKey = Key.F1;
 
     private readonly List<Action> pendingInputCommits = new List<Action>();
     private readonly Dictionary<FieldInfo, object> draftSettings = new Dictionary<FieldInfo, object>();
+    private readonly Queue<LoggedError> pendingErrors = new Queue<LoggedError>();
+    private readonly object pendingErrorsLock = new object();
 
     private TerrainGen terrain;
     private Font font;
     private Canvas rootCanvas;
+    private Transform runtimeUiRoot;
     private RectTransform mainPanel;
     private RectTransform content;
     private LayoutElement viewportLayout;
@@ -44,9 +64,22 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
     private Button statisticsToggle;
     private RectTransform statisticsPanel;
     private Text statisticsText;
+    private RectTransform errorPopup;
+    private Text errorPopupTitle;
+    private ScrollRect errorPopupScrollRect;
+    private RectTransform errorPopupContent;
+    private RectTransform helpPopup;
+    private bool allUiVisible = true;
+    private bool escapeRestoredUiThisFrame;
+    private TerrainVisualizationMenu visualizationMenu;
+    private CameraMovement cameraMovement;
+    private readonly List<LoggedError> recentErrors = new List<LoggedError>();
+    private const int MaximumVisibleErrors = 12;
     private int screenWidth;
     private int screenHeight;
     private bool wasGenerating;
+
+    public bool EscapeRestoredUiThisFrame => escapeRestoredUiThisFrame;
 
     private void Awake()
     {
@@ -57,22 +90,53 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
             return;
         }
 
+        if (toggleUiKey == Key.None || toggleUiKey == Key.Escape)
+        {
+            toggleUiKey = Key.F1;
+        }
+
+        Application.logMessageReceivedThreaded += OnLogMessageReceived;
         font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         BuildPanel();
         RefreshPanelSize();
         terrain.BeforeRegenerateChunks += ApplySettings;
+        terrain.ModelResolutionRequirementChanged += OnModelResolutionRequirementChanged;
     }
 
     private void OnDestroy()
     {
+        Application.logMessageReceivedThreaded -= OnLogMessageReceived;
         if (terrain != null)
         {
             terrain.BeforeRegenerateChunks -= ApplySettings;
+            terrain.ModelResolutionRequirementChanged -= OnModelResolutionRequirementChanged;
         }
     }
 
     private void Update()
     {
+        escapeRestoredUiThisFrame = false;
+        Keyboard keyboard = Keyboard.current;
+        if (keyboard != null)
+        {
+            bool togglePressed = toggleUiKey != Key.None && toggleUiKey != Key.Escape &&
+                                 keyboard[toggleUiKey].wasPressedThisFrame;
+            if (togglePressed)
+            {
+                SetAllUiVisible(!allUiVisible);
+                return;
+            }
+
+            if (!allUiVisible && keyboard.escapeKey.wasPressedThisFrame)
+            {
+                SetAllUiVisible(true);
+                escapeRestoredUiThisFrame = true;
+                return;
+            }
+        }
+
+        ProcessPendingErrors();
+
         if (screenWidth != Screen.width || screenHeight != Screen.height)
         {
             RefreshPanelSize();
@@ -109,7 +173,11 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
             rootCanvas.gameObject.AddComponent<GraphicRaycaster>();
         }
 
-        mainPanel = CreateObject("Terrain Settings Panel", canvas.transform).GetComponent<RectTransform>();
+        RectTransform runtimeRoot = CreateObject("Terrain Runtime UI", rootCanvas.transform).GetComponent<RectTransform>();
+        Stretch(runtimeRoot, Vector2.zero, Vector2.zero);
+        runtimeUiRoot = runtimeRoot;
+
+        mainPanel = CreateObject("Terrain Settings Panel", runtimeUiRoot).GetComponent<RectTransform>();
         mainPanel.anchorMin = Vector2.one;
         mainPanel.anchorMax = Vector2.one;
         mainPanel.pivot = Vector2.one;
@@ -131,13 +199,26 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
         panelLayout.childForceExpandWidth = true;
         panelLayout.childForceExpandHeight = false;
 
-        Text title = CreateText("Title", mainPanel, "Terrain Settings", 18, TextColor, TextAnchor.MiddleLeft);
-        SetPreferredHeight(title.rectTransform, HeaderHeight);
+        RectTransform titleRow = CreateObject("Title Row", mainPanel).GetComponent<RectTransform>();
+        HorizontalLayoutGroup titleLayout = titleRow.gameObject.AddComponent<HorizontalLayoutGroup>();
+        titleLayout.spacing = 8f;
+        titleLayout.childControlWidth = true;
+        titleLayout.childControlHeight = true;
+        titleLayout.childForceExpandWidth = false;
+        titleLayout.childForceExpandHeight = true;
+        SetPreferredHeight(titleRow, HeaderHeight);
+
+        Text title = CreateText("Title", titleRow, "Terrain Settings", 18, TextColor, TextAnchor.MiddleLeft);
+        SetFlexibleWidth(title.rectTransform, 1f);
+        Button helpButton = CreateButton("Help", titleRow, "Help", FieldColor, ShowHelpPopup);
+        LayoutElement helpButtonLayout = helpButton.gameObject.AddComponent<LayoutElement>();
+        helpButtonLayout.preferredWidth = 56f;
+        helpButtonLayout.minWidth = 56f;
 
         Text hint = CreateText(
             "Hint",
             mainPanel,
-            "Press Esc to use the menu. Click terrain to resume camera control.",
+            "Press Escape to restore hidden UI. Click terrain to resume camera control.",
             11,
             MutedTextColor,
             TextAnchor.MiddleLeft);
@@ -156,6 +237,8 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
         }
 
         BuildStatisticsOverlay();
+        BuildErrorPopup();
+        BuildHelpPopup();
     }
 
     private void BuildScrollView(Transform parent)
@@ -239,6 +322,14 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
             BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
         Array.Sort(fields, (left, right) => left.MetadataToken.CompareTo(right.MetadataToken));
 
+        foreach (FieldInfo field in fields)
+        {
+            if (IsRuntimeEditable(field) && !draftSettings.ContainsKey(field))
+            {
+                draftSettings[field] = field.GetValue(terrain);
+            }
+        }
+
         string currentHeader = null;
         string pendingHeader = null;
         foreach (FieldInfo field in fields)
@@ -254,6 +345,11 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
                 continue;
             }
 
+            if (!IsVisibleForCurrentSettings(field))
+            {
+                continue;
+            }
+
             if (pendingHeader != null && pendingHeader != currentHeader)
             {
                 currentHeader = pendingHeader;
@@ -261,8 +357,101 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
                 SetPreferredHeight(section.rectTransform, SectionHeight);
             }
 
-            draftSettings[field] = field.GetValue(terrain);
             AddControlForField(field);
+        }
+    }
+
+    private bool IsVisibleForCurrentSettings(FieldInfo field)
+    {
+        TerrainGen.GeneratorSpecificAttribute generatorSpecific =
+            field.GetCustomAttribute<TerrainGen.GeneratorSpecificAttribute>();
+        if (generatorSpecific != null)
+        {
+            FieldInfo generatorField = typeof(TerrainGen).GetField("generatorType",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            TerrainGen.GeneratorType selectedGenerator =
+                (TerrainGen.GeneratorType)draftSettings[generatorField];
+            bool applies = false;
+            foreach (TerrainGen.GeneratorType generator in generatorSpecific.Generators)
+            {
+                if (generator == selectedGenerator)
+                {
+                    applies = true;
+                    break;
+                }
+            }
+            if (!applies)
+            {
+                return false;
+            }
+        }
+
+        TerrainGen.VisibleWhenAttribute visibleWhen = field.GetCustomAttribute<TerrainGen.VisibleWhenAttribute>();
+        if (visibleWhen != null)
+        {
+            FieldInfo conditionField = typeof(TerrainGen).GetField(visibleWhen.FieldName,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            if (conditionField == null || !draftSettings.TryGetValue(conditionField, out object conditionValue) ||
+                !Equals(conditionValue, visibleWhen.Value))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private bool HasVisibilityDependency(FieldInfo field)
+    {
+        FieldInfo[] fields = typeof(TerrainGen).GetFields(
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        foreach (FieldInfo candidate in fields)
+        {
+            TerrainGen.VisibleWhenAttribute visibleWhen =
+                candidate.GetCustomAttribute<TerrainGen.VisibleWhenAttribute>();
+            if (visibleWhen != null && visibleWhen.FieldName == field.Name)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void RebuildFieldControls(FieldInfo updatedField = null, object updatedValue = null)
+    {
+        foreach (Action commit in pendingInputCommits)
+        {
+            commit();
+        }
+        pendingInputCommits.Clear();
+        if (updatedField != null)
+        {
+            draftSettings[updatedField] = updatedValue;
+        }
+        CloseEnumDropdown();
+
+        for (int i = content.childCount - 1; i >= 0; i--)
+        {
+            Transform child = content.GetChild(i);
+            child.gameObject.SetActive(false);
+            Destroy(child.gameObject);
+        }
+
+        BuildFieldControls();
+        RefreshPanelSize();
+    }
+
+    private void OnModelResolutionRequirementChanged(int requiredResolution)
+    {
+        if (requiredResolution > 0)
+        {
+            FieldInfo resolutionField = typeof(TerrainGen).GetField("resolution",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            RebuildFieldControls(resolutionField, requiredResolution);
+        }
+        else
+        {
+            RebuildFieldControls();
         }
     }
 
@@ -340,6 +529,10 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
             bool value = !(bool)draftSettings[field];
             draftSettings[field] = value;
             valueText.text = value ? "On" : "Off";
+            if (HasVisibilityDependency(field))
+            {
+                RebuildFieldControls();
+            }
         });
     }
 
@@ -359,6 +552,25 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
         InputField input = CreateInputField(row, FormatValue(draftSettings[field]), "Value");
         SetFlexibleWidth(input.GetComponent<RectTransform>(), 1f);
 
+        int requiredResolution = 0;
+        bool resolutionLocked = field.Name == "resolution" &&
+                                TryGetSelectedModelResolutionRequirement(out requiredResolution);
+        if (resolutionLocked)
+        {
+            input.interactable = false;
+            input.textComponent.color = MutedTextColor;
+            if (input.targetGraphic is Image inputBackground)
+            {
+                inputBackground.color = new Color(FieldColor.r * 0.75f, FieldColor.g * 0.75f,
+                    FieldColor.b * 0.75f, FieldColor.a);
+            }
+
+            Text hint = CreateText("Model Resolution Hint", content,
+                "Resolution fixed by selected model: " + requiredResolution + " × " + requiredResolution,
+                11, MutedTextColor, TextAnchor.MiddleRight);
+            SetPreferredHeight(hint.rectTransform, 18f);
+        }
+
         Action commit = () =>
         {
             if (TryParseValue(input.text, field.FieldType, out object parsedValue))
@@ -373,8 +585,35 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
             }
         };
 
-        input.onEndEdit.AddListener(_ => commit());
+        input.onEndEdit.AddListener(_ =>
+        {
+            commit();
+            if (field.Name == "bpModelPath" || field.Name == "erosionModelPath")
+            {
+                RebuildFieldControls();
+            }
+        });
         pendingInputCommits.Add(commit);
+    }
+
+    private bool TryGetSelectedModelResolutionRequirement(out int requiredResolution)
+    {
+        requiredResolution = 0;
+        FieldInfo generatorField = typeof(TerrainGen).GetField("generatorType",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        TerrainGen.GeneratorType generator = (TerrainGen.GeneratorType)draftSettings[generatorField];
+        string pathFieldName = generator == TerrainGen.GeneratorType.BPGenerator ? "bpModelPath"
+            : generator == TerrainGen.GeneratorType.ModelErosion ? "erosionModelPath"
+            : null;
+        if (pathFieldName == null)
+        {
+            return false;
+        }
+
+        FieldInfo pathField = typeof(TerrainGen).GetField(pathFieldName,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        string modelPath = draftSettings[pathField] as string;
+        return terrain.TryGetModelResolutionRequirement(generator, modelPath, out requiredResolution);
     }
 
     private void AddVectorControl(FieldInfo field, string[] labels, bool integerValues)
@@ -450,7 +689,7 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
 
         Array values = Enum.GetValues(field.FieldType);
         enumDropdownBlocker = CreateClickBlocker("Generator Dropdown Blocker", CloseEnumDropdown);
-        enumDropdown = CreateObject("Generator Dropdown", rootCanvas.transform);
+        enumDropdown = CreateObject("Generator Dropdown", runtimeUiRoot);
         enumDropdown.transform.SetAsLastSibling();
 
         Image background = enumDropdown.AddComponent<Image>();
@@ -475,6 +714,10 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
                 draftSettings[field] = selectedValue;
                 caption.text = selectedValue.ToString();
                 CloseEnumDropdown();
+                if (field.FieldType == typeof(TerrainGen.GeneratorType))
+                {
+                    RebuildFieldControls();
+                }
             });
             SetPreferredHeight(option.GetComponent<RectTransform>(), RowHeight);
         }
@@ -497,7 +740,7 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
 
     private void BuildStatisticsOverlay()
     {
-        statisticsToggle = CreateButton("Statistics Toggle", rootCanvas.transform, string.Empty, FieldColor, ShowStatistics);
+        statisticsToggle = CreateButton("Statistics Toggle", runtimeUiRoot, string.Empty, FieldColor, ShowStatistics);
         RectTransform toggleRect = statisticsToggle.GetComponent<RectTransform>();
         toggleRect.anchorMin = new Vector2(0f, 1f);
         toggleRect.anchorMax = new Vector2(0f, 1f);
@@ -506,7 +749,7 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
         toggleRect.sizeDelta = new Vector2(38f, 36f);
         CreateStatisticsIcon(statisticsToggle);
 
-        statisticsPanel = CreateObject("Statistics Panel", rootCanvas.transform).GetComponent<RectTransform>();
+        statisticsPanel = CreateObject("Statistics Panel", runtimeUiRoot).GetComponent<RectTransform>();
         statisticsPanel.anchorMin = new Vector2(0f, 1f);
         statisticsPanel.anchorMax = new Vector2(0f, 1f);
         statisticsPanel.pivot = new Vector2(0f, 1f);
@@ -548,6 +791,441 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
         ShowStatistics();
     }
 
+    private void BuildErrorPopup()
+    {
+        errorPopup = CreateObject("Runtime Error Popup", runtimeUiRoot).GetComponent<RectTransform>();
+        errorPopup.anchorMin = new Vector2(0.5f, 0.5f);
+        errorPopup.anchorMax = new Vector2(0.5f, 0.5f);
+        errorPopup.pivot = new Vector2(0.5f, 0.5f);
+        RefreshErrorPopupSize();
+
+        Image background = errorPopup.gameObject.AddComponent<Image>();
+        background.color = new Color(0.045f, 0.035f, 0.055f, 0.98f);
+        Outline outline = errorPopup.gameObject.AddComponent<Outline>();
+        Color errorAccent = new Color(0.86f, 0.22f, 0.2f, 1f);
+        outline.effectColor = new Color(errorAccent.r, errorAccent.g, errorAccent.b, 0.75f);
+        outline.effectDistance = new Vector2(1f, -1f);
+
+        RectTransform accentBar = CreateObject("Error Accent", errorPopup).GetComponent<RectTransform>();
+        accentBar.anchorMin = new Vector2(0f, 1f);
+        accentBar.anchorMax = new Vector2(1f, 1f);
+        accentBar.pivot = new Vector2(0.5f, 1f);
+        accentBar.anchoredPosition = Vector2.zero;
+        accentBar.sizeDelta = new Vector2(0f, 4f);
+        accentBar.gameObject.AddComponent<Image>().color = errorAccent;
+
+        errorPopupTitle = CreateText("Error Title", errorPopup, "Error", 20, Color.white, TextAnchor.MiddleLeft);
+        errorPopupTitle.fontStyle = FontStyle.Bold;
+        SetHelpRect(errorPopupTitle.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+            new Vector2(22f, -16f), new Vector2(340f, 34f));
+
+        Button closeButton = CreateButton("Close Errors", errorPopup, "Close", FieldColor, HideErrorPopup);
+        SetHelpRect(closeButton.GetComponent<RectTransform>(), new Vector2(1f, 1f), new Vector2(1f, 1f),
+            new Vector2(-18f, -14f), new Vector2(76f, 34f));
+
+        RectTransform divider = CreateObject("Error Divider", errorPopup).GetComponent<RectTransform>();
+        divider.anchorMin = new Vector2(0f, 1f);
+        divider.anchorMax = new Vector2(1f, 1f);
+        divider.pivot = new Vector2(0.5f, 1f);
+        divider.anchoredPosition = new Vector2(0f, -60f);
+        divider.sizeDelta = new Vector2(-40f, 1f);
+        divider.gameObject.AddComponent<Image>().color = new Color(errorAccent.r, errorAccent.g, errorAccent.b, 0.45f);
+
+        GameObject scrollObject = CreateObject("Error Details Scroll View", errorPopup);
+        RectTransform scrollRect = scrollObject.GetComponent<RectTransform>();
+        scrollRect.anchorMin = Vector2.zero;
+        scrollRect.anchorMax = Vector2.one;
+        scrollRect.offsetMin = new Vector2(18f, 16f);
+        scrollRect.offsetMax = new Vector2(-18f, -72f);
+
+        errorPopupScrollRect = scrollObject.AddComponent<ScrollRect>();
+        errorPopupScrollRect.horizontal = false;
+        errorPopupScrollRect.vertical = true;
+        errorPopupScrollRect.movementType = ScrollRect.MovementType.Clamped;
+        errorPopupScrollRect.scrollSensitivity = 24f;
+
+        RectTransform viewport = CreateObject("Error Details Viewport", scrollObject.transform).GetComponent<RectTransform>();
+        Stretch(viewport, Vector2.zero, Vector2.zero);
+        Image viewportImage = viewport.gameObject.AddComponent<Image>();
+        viewportImage.color = new Color(0.025f, 0.025f, 0.04f, 0.55f);
+        Mask viewportMask = viewport.gameObject.AddComponent<Mask>();
+        viewportMask.showMaskGraphic = false;
+
+        errorPopupContent = CreateObject("Error Entries", viewport).GetComponent<RectTransform>();
+        errorPopupContent.anchorMin = new Vector2(0f, 1f);
+        errorPopupContent.anchorMax = new Vector2(1f, 1f);
+        errorPopupContent.pivot = new Vector2(0.5f, 1f);
+        errorPopupContent.anchoredPosition = Vector2.zero;
+        errorPopupContent.sizeDelta = new Vector2(0f, 0f);
+
+        VerticalLayoutGroup contentLayout = errorPopupContent.gameObject.AddComponent<VerticalLayoutGroup>();
+        contentLayout.padding = new RectOffset(8, 8, 8, 8);
+        contentLayout.spacing = 8f;
+        contentLayout.childControlWidth = true;
+        contentLayout.childControlHeight = true;
+        contentLayout.childForceExpandWidth = true;
+        contentLayout.childForceExpandHeight = false;
+
+        ContentSizeFitter contentSize = errorPopupContent.gameObject.AddComponent<ContentSizeFitter>();
+        contentSize.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+        contentSize.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        errorPopupScrollRect.viewport = viewport;
+        errorPopupScrollRect.content = errorPopupContent;
+        errorPopup.gameObject.SetActive(false);
+    }
+
+    private void OnLogMessageReceived(string condition, string stackTrace, LogType type)
+    {
+        if (type != LogType.Error && type != LogType.Exception && type != LogType.Assert)
+        {
+            return;
+        }
+
+        lock (pendingErrorsLock)
+        {
+            pendingErrors.Enqueue(new LoggedError(condition, stackTrace, type));
+            while (pendingErrors.Count > 64)
+            {
+                pendingErrors.Dequeue();
+            }
+        }
+    }
+
+    private void ProcessPendingErrors()
+    {
+        bool receivedErrors = false;
+        while (true)
+        {
+            LoggedError error;
+            lock (pendingErrorsLock)
+            {
+                if (pendingErrors.Count == 0)
+                {
+                    break;
+                }
+                error = pendingErrors.Dequeue();
+            }
+
+            AddErrorToPopup(error);
+            receivedErrors = true;
+        }
+
+        if (receivedErrors)
+        {
+            if (allUiVisible)
+            {
+                errorPopup.gameObject.SetActive(true);
+                errorPopup.SetAsLastSibling();
+            }
+            RefreshErrorPopupContent();
+        }
+    }
+
+    private void AddErrorToPopup(LoggedError error)
+    {
+        recentErrors.Insert(0, error);
+        if (recentErrors.Count > MaximumVisibleErrors)
+        {
+            recentErrors.RemoveAt(recentErrors.Count - 1);
+        }
+
+    }
+
+    private void HideErrorPopup()
+    {
+        recentErrors.Clear();
+        lock (pendingErrorsLock)
+        {
+            pendingErrors.Clear();
+        }
+        errorPopupTitle.text = "Error";
+        ClearErrorPopupEntries();
+        errorPopup.gameObject.SetActive(false);
+    }
+
+    private void RefreshErrorPopupContent()
+    {
+        ClearErrorPopupEntries();
+        foreach (LoggedError error in recentErrors)
+        {
+            CreateErrorEntry(error);
+        }
+
+        errorPopupTitle.text = recentErrors.Count == 1 ? "Error" : "Errors (" + recentErrors.Count + ")";
+        if (allUiVisible)
+        {
+            Canvas.ForceUpdateCanvases();
+            errorPopupScrollRect.verticalNormalizedPosition = 1f;
+        }
+    }
+
+    private void ClearErrorPopupEntries()
+    {
+        for (int i = errorPopupContent.childCount - 1; i >= 0; i--)
+        {
+            Transform child = errorPopupContent.GetChild(i);
+            child.gameObject.SetActive(false);
+            Destroy(child.gameObject);
+        }
+    }
+
+    private void CreateErrorEntry(LoggedError error)
+    {
+        RectTransform card = CreateObject("Error Entry", errorPopupContent).GetComponent<RectTransform>();
+        Image background = card.gameObject.AddComponent<Image>();
+        background.color = new Color(0.09f, 0.055f, 0.075f, 0.92f);
+
+        string typeLabel = error.Type == LogType.Exception ? "EXCEPTION"
+            : error.Type == LogType.Assert ? "ASSERT" : "ERROR";
+        Color typeColor = error.Type == LogType.Assert
+            ? new Color(1f, 0.64f, 0.25f, 1f)
+            : new Color(1f, 0.38f, 0.34f, 1f);
+        Outline cardOutline = card.gameObject.AddComponent<Outline>();
+        cardOutline.effectColor = new Color(typeColor.r, typeColor.g, typeColor.b, 0.35f);
+        cardOutline.effectDistance = new Vector2(0.5f, -0.5f);
+
+        VerticalLayoutGroup layout = card.gameObject.AddComponent<VerticalLayoutGroup>();
+        layout.padding = new RectOffset(10, 10, 8, 8);
+        layout.spacing = 5f;
+        layout.childControlWidth = true;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+
+        ContentSizeFitter cardSize = card.gameObject.AddComponent<ContentSizeFitter>();
+        cardSize.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+        cardSize.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        RectTransform heading = CreateObject("Error Entry Header", card).GetComponent<RectTransform>();
+        HorizontalLayoutGroup headingLayout = heading.gameObject.AddComponent<HorizontalLayoutGroup>();
+        headingLayout.childControlWidth = true;
+        headingLayout.childControlHeight = true;
+        headingLayout.childForceExpandWidth = false;
+        headingLayout.childForceExpandHeight = true;
+        SetPreferredHeight(heading, 20f);
+
+        RectTransform badge = CreateObject("Error Type Badge", heading).GetComponent<RectTransform>();
+        Image badgeBackground = badge.gameObject.AddComponent<Image>();
+        badgeBackground.color = new Color(typeColor.r, typeColor.g, typeColor.b, 0.16f);
+        LayoutElement badgeLayout = badge.gameObject.AddComponent<LayoutElement>();
+        badgeLayout.preferredWidth = error.Type == LogType.Exception ? 92f : 64f;
+        badgeLayout.minWidth = badgeLayout.preferredWidth;
+        SetPreferredHeight(badge, 20f);
+
+        Text label = CreateText("Error Type", badge, typeLabel, 11, typeColor, TextAnchor.MiddleCenter);
+        label.fontStyle = FontStyle.Bold;
+        Stretch(label.rectTransform, Vector2.zero, Vector2.zero);
+
+        string message = string.IsNullOrWhiteSpace(error.Condition) ? error.Type.ToString() : error.Condition.Trim();
+        if (!string.IsNullOrWhiteSpace(error.StackTrace))
+        {
+            string[] stackLines = error.StackTrace.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+            if (stackLines.Length > 0)
+            {
+                message += "\n" + stackLines[0].Trim();
+            }
+        }
+
+        Text details = CreateText("Error Message", card, message, 13, TextColor, TextAnchor.UpperLeft);
+        details.horizontalOverflow = HorizontalWrapMode.Wrap;
+        details.verticalOverflow = VerticalWrapMode.Overflow;
+    }
+
+    private void BuildHelpPopup()
+    {
+        helpPopup = CreateObject("Runtime Help Popup", runtimeUiRoot).GetComponent<RectTransform>();
+        helpPopup.anchorMin = new Vector2(0.5f, 0.5f);
+        helpPopup.anchorMax = new Vector2(0.5f, 0.5f);
+        helpPopup.pivot = new Vector2(0.5f, 0.5f);
+        RefreshHelpPopupSize();
+
+        Image background = helpPopup.gameObject.AddComponent<Image>();
+        background.color = new Color(0.035f, 0.05f, 0.075f, 0.97f);
+        Outline outline = helpPopup.gameObject.AddComponent<Outline>();
+        outline.effectColor = new Color(AccentColor.r, AccentColor.g, AccentColor.b, 0.75f);
+        outline.effectDistance = new Vector2(1f, -1f);
+
+        RectTransform accentBar = CreateObject("Help Accent", helpPopup).GetComponent<RectTransform>();
+        accentBar.anchorMin = new Vector2(0f, 1f);
+        accentBar.anchorMax = new Vector2(1f, 1f);
+        accentBar.pivot = new Vector2(0.5f, 1f);
+        accentBar.anchoredPosition = Vector2.zero;
+        accentBar.sizeDelta = new Vector2(0f, 4f);
+        accentBar.gameObject.AddComponent<Image>().color = AccentColor;
+
+        Text title = CreateText("Help Title", helpPopup, "Controls", 22, TextColor, TextAnchor.MiddleLeft);
+        title.fontStyle = FontStyle.Bold;
+        SetHelpRect(title.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+            new Vector2(24f, -18f), new Vector2(260f, 34f));
+
+        Button closeButton = CreateButton("Close Help", helpPopup, "Close", FieldColor, HideHelpPopup);
+        RectTransform closeRect = closeButton.GetComponent<RectTransform>();
+        SetHelpRect(closeRect, new Vector2(1f, 1f), new Vector2(1f, 1f),
+            new Vector2(-20f, -16f), new Vector2(76f, 34f));
+
+        RectTransform divider = CreateObject("Help Divider", helpPopup).GetComponent<RectTransform>();
+        divider.anchorMin = new Vector2(0f, 1f);
+        divider.anchorMax = new Vector2(1f, 1f);
+        divider.pivot = new Vector2(0.5f, 1f);
+        divider.anchoredPosition = new Vector2(0f, -64f);
+        divider.sizeDelta = new Vector2(-44f, 1f);
+        divider.gameObject.AddComponent<Image>().color = new Color(AccentColor.r, AccentColor.g, AccentColor.b, 0.45f);
+
+        Text section = CreateText("Keyboard Controls Heading", helpPopup, "Keyboard controls", 14,
+            AccentColor, TextAnchor.MiddleLeft);
+        section.fontStyle = FontStyle.Bold;
+        SetHelpRect(section.rectTransform, new Vector2(0f, 1f), new Vector2(0f, 1f),
+            new Vector2(24f, -76f), new Vector2(260f, 22f));
+
+        string[] keys =
+        {
+            toggleUiKey.ToString(), "Escape", "R", "W / A / S / D", "Space / Ctrl", "Shift", "1–6"
+        };
+        string[] descriptions =
+        {
+            "hide or show all in-game UI",
+            "release the cursor or open the quit dialog",
+            "regenerate terrain",
+            "move the camera",
+            "move up or down",
+            "move faster",
+            "select a visualization preset"
+        };
+
+        for (int i = 0; i < keys.Length; i++)
+        {
+            CreateHelpControlRow(i, keys[i], descriptions[i]);
+        }
+
+        helpPopup.gameObject.SetActive(false);
+    }
+
+    private void CreateHelpControlRow(int index, string key, string description)
+    {
+        const float rowHeight = 36f;
+        const float rowSpacing = 5f;
+        float top = 102f + index * (rowHeight + rowSpacing);
+
+        RectTransform row = CreateObject("Help Control Row", helpPopup).GetComponent<RectTransform>();
+        row.anchorMin = new Vector2(0f, 1f);
+        row.anchorMax = new Vector2(1f, 1f);
+        row.pivot = new Vector2(0.5f, 1f);
+        row.anchoredPosition = new Vector2(0f, -top);
+        row.sizeDelta = new Vector2(-44f, rowHeight);
+        Image rowBackground = row.gameObject.AddComponent<Image>();
+        rowBackground.color = index % 2 == 0
+            ? new Color(0.09f, 0.12f, 0.17f, 0.82f)
+            : new Color(0.07f, 0.095f, 0.14f, 0.82f);
+
+        RectTransform keyBadge = CreateObject("Key Badge", row).GetComponent<RectTransform>();
+        keyBadge.anchorMin = new Vector2(0f, 0.5f);
+        keyBadge.anchorMax = new Vector2(0f, 0.5f);
+        keyBadge.pivot = new Vector2(0f, 0.5f);
+        keyBadge.anchoredPosition = new Vector2(10f, 0f);
+        keyBadge.sizeDelta = new Vector2(124f, 28f);
+        Image keyBackground = keyBadge.gameObject.AddComponent<Image>();
+        keyBackground.color = new Color(AccentColor.r, AccentColor.g, AccentColor.b, 0.95f);
+
+        Text keyText = CreateText("Key", keyBadge, key, 13, Color.white, TextAnchor.MiddleCenter);
+        keyText.fontStyle = FontStyle.Bold;
+        Stretch(keyText.rectTransform, Vector2.zero, Vector2.zero);
+
+        Text descriptionText = CreateText("Description", row, description, 14, TextColor, TextAnchor.MiddleLeft);
+        descriptionText.horizontalOverflow = HorizontalWrapMode.Wrap;
+        descriptionText.verticalOverflow = VerticalWrapMode.Truncate;
+        RectTransform descriptionRect = descriptionText.rectTransform;
+        descriptionRect.anchorMin = Vector2.zero;
+        descriptionRect.anchorMax = Vector2.one;
+        descriptionRect.offsetMin = new Vector2(148f, 0f);
+        descriptionRect.offsetMax = new Vector2(-10f, 0f);
+    }
+
+    private void ShowHelpPopup()
+    {
+        helpPopup.gameObject.SetActive(true);
+        helpPopup.SetAsLastSibling();
+    }
+
+    private void HideHelpPopup()
+    {
+        helpPopup.gameObject.SetActive(false);
+    }
+
+    private void RefreshHelpPopupSize()
+    {
+        if (helpPopup == null)
+        {
+            return;
+        }
+
+        float width = Mathf.Max(1f, Mathf.Min(520f, Screen.width - 48f));
+        float height = Mathf.Max(180f, Mathf.Min(400f, Screen.height - 48f));
+        helpPopup.sizeDelta = new Vector2(width, height);
+    }
+
+    private static void SetHelpRect(RectTransform rect, Vector2 anchor, Vector2 pivot,
+        Vector2 position, Vector2 size)
+    {
+        rect.anchorMin = rect.anchorMax = anchor;
+        rect.pivot = pivot;
+        rect.anchoredPosition = position;
+        rect.sizeDelta = size;
+    }
+
+    private void SetAllUiVisible(bool visible)
+    {
+        allUiVisible = visible;
+        if (!visible)
+        {
+            CloseEnumDropdown();
+            HideHelpPopup();
+            QuitConfirmationDialog quitDialog = FindFirstObjectByType<QuitConfirmationDialog>();
+            if (quitDialog != null)
+            {
+                quitDialog.Hide();
+            }
+        }
+
+        errorPopup.gameObject.SetActive(visible && recentErrors.Count > 0);
+        runtimeUiRoot.gameObject.SetActive(visible);
+        if (visible && recentErrors.Count > 0)
+        {
+            Canvas.ForceUpdateCanvases();
+            errorPopupScrollRect.verticalNormalizedPosition = 1f;
+        }
+
+        if (visualizationMenu == null)
+        {
+            visualizationMenu = FindFirstObjectByType<TerrainVisualizationMenu>();
+        }
+        if (visualizationMenu != null)
+        {
+            visualizationMenu.SetMenuVisible(visible);
+        }
+
+        if (cameraMovement == null)
+        {
+            cameraMovement = FindFirstObjectByType<CameraMovement>();
+        }
+        if (cameraMovement != null)
+        {
+            cameraMovement.SetCursorLocked(!visible);
+        }
+    }
+
+    private void RefreshErrorPopupSize()
+    {
+        if (errorPopup == null)
+        {
+            return;
+        }
+
+        float width = Mathf.Max(1f, Mathf.Min(520f, Screen.width - 48f));
+        float height = Mathf.Max(180f, Mathf.Min(320f, Screen.height - 48f));
+        errorPopup.sizeDelta = new Vector2(width, height);
+    }
+
     private void ShowStatistics()
     {
         statisticsPanel.gameObject.SetActive(true);
@@ -583,7 +1261,7 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
 
     private GameObject CreateClickBlocker(string name, UnityEngine.Events.UnityAction onClick)
     {
-        GameObject blocker = CreateObject(name, rootCanvas.transform);
+        GameObject blocker = CreateObject(name, runtimeUiRoot);
         RectTransform blockerRect = blocker.GetComponent<RectTransform>();
         Stretch(blockerRect, Vector2.zero, Vector2.zero);
         Image image = blocker.AddComponent<Image>();
@@ -651,6 +1329,9 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
     {
         screenWidth = Screen.width;
         screenHeight = Screen.height;
+
+        RefreshErrorPopupSize();
+        RefreshHelpPopupSize();
 
         Canvas.ForceUpdateCanvases();
         LayoutRebuilder.ForceRebuildLayoutImmediate(content);

@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using Stopwatch = System.Diagnostics.Stopwatch;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -15,6 +16,30 @@ public class TerrainGen : MonoBehaviour
         BrownianNoise,
         BPGenerator,
         ModelErosion
+    }
+
+    [AttributeUsage(AttributeTargets.Field)]
+    public sealed class GeneratorSpecificAttribute : Attribute
+    {
+        public GeneratorType[] Generators { get; }
+
+        public GeneratorSpecificAttribute(params GeneratorType[] generators)
+        {
+            Generators = generators;
+        }
+    }
+
+    [AttributeUsage(AttributeTargets.Field)]
+    public sealed class VisibleWhenAttribute : Attribute
+    {
+        public string FieldName { get; }
+        public bool Value { get; }
+
+        public VisibleWhenAttribute(string fieldName, bool value)
+        {
+            FieldName = fieldName;
+            Value = value;
+        }
     }
 
     [Header("Terrain Common Settings")]
@@ -32,32 +57,58 @@ public class TerrainGen : MonoBehaviour
 
     [Header("BP Generator Settings")]
     [Tooltip("ONNX model path, either absolute or relative to StreamingAssets. Resolution must match the model output.")]
+    [GeneratorSpecific(GeneratorType.BPGenerator)]
     [SerializeField] private string bpModelPath = "best_step6126.onnx";
 
     [Header("Model Erosion Settings")]
     [Tooltip("ONNX model path, either absolute or relative to StreamingAssets. Resolution must match the model output.")]
+    [GeneratorSpecific(GeneratorType.ModelErosion)]
     [SerializeField] private string erosionModelPath = "erosion_model.onnx";
 
+    [Header("Blender")]
+    [Tooltip("Blend chunk edges using the selected generator as the source.")]
+    [SerializeField] private bool useBlender;
+    [Header("Blender Settings")]
+    [VisibleWhen(nameof(useBlender), true)]
+    [Min(1)][SerializeField] private int blendingRadius = 3;
+    [VisibleWhen(nameof(useBlender), true)]
+    [Min(1)][SerializeField] private int edgeSamplingRadius = 2;
+
     [Header("Hydraulic Erosion Settings")]
+    [GeneratorSpecific(GeneratorType.HydraulicErosion)]
     [SerializeField] private int erosionSeed;
+    [GeneratorSpecific(GeneratorType.HydraulicErosion)]
     [Min(0)][SerializeField] private int erosionIterations = 10;
+    [GeneratorSpecific(GeneratorType.HydraulicErosion)]
     [Min(1)][SerializeField] private int erosionRadius = 3;
+    [GeneratorSpecific(GeneratorType.HydraulicErosion)]
     [Min(1)][SerializeField] private int maxDropletLifetime = 30;
+    [GeneratorSpecific(GeneratorType.HydraulicErosion)]
     [Min(0)][SerializeField] private int padding = 30;
+    [GeneratorSpecific(GeneratorType.HydraulicErosion)]
     [Range(0.0f, 1.0f)][SerializeField] private float inertia = 0.05f;
+    [GeneratorSpecific(GeneratorType.HydraulicErosion)]
     [Min(0.0f)][SerializeField] private float sedimentCapacityFactor = 4.0f;
+    [GeneratorSpecific(GeneratorType.HydraulicErosion)]
     [Min(0.0f)][SerializeField] private float minSedimentCapacity = 0.01f;
+    [GeneratorSpecific(GeneratorType.HydraulicErosion)]
     [Range(0.0f, 1.0f)][SerializeField] private float erodeSpeed = 0.3f;
+    [GeneratorSpecific(GeneratorType.HydraulicErosion)]
     [Range(0.0f, 1.0f)][SerializeField] private float depositSpeed = 0.3f;
+    [GeneratorSpecific(GeneratorType.HydraulicErosion)]
     [Range(0.0f, 1.0f)][SerializeField] private float evaporateSpeed = 0.01f;
+    [GeneratorSpecific(GeneratorType.HydraulicErosion)]
     [Min(0.0f)][SerializeField] private float gravity = 4.0f;
+    [GeneratorSpecific(GeneratorType.HydraulicErosion)]
     [Min(0.0f)][SerializeField] private float initialSpeed = 1.0f;
+    [GeneratorSpecific(GeneratorType.HydraulicErosion)]
     [Min(0.0f)][SerializeField] private float initialWaterVolume = 1.0f;
 
     public static bool IsGenerating { get; private set; }
     public bool KeyboardShortcutsEnabled { get; set; } = true;
     public event Action BeforeRegenerateChunks;
     public event Action<Chunk> ChunkGenerated;
+    public event Action<int> ModelResolutionRequirementChanged;
     public bool HasHeightStatistics { get; private set; }
     public float HighestHeight { get; private set; }
     public double MaximumSlope { get; private set; }
@@ -81,6 +132,16 @@ public class TerrainGen : MonoBehaviour
     private TerrainGenerationSession generationSession;
     private int numberOfGeneration;
     private bool started;
+    private GeneratorType modelResolutionGenerator;
+    private string modelResolutionPath;
+    private int modelResolutionRequirement;
+
+    public bool TryGetModelResolutionRequirement(GeneratorType type, string modelPath, out int requiredResolution)
+    {
+        requiredResolution = modelResolutionRequirement;
+        return requiredResolution > 0 && modelResolutionGenerator == type &&
+               string.Equals(modelResolutionPath, modelPath, StringComparison.Ordinal);
+    }
 
     private void Awake()
     {
@@ -118,6 +179,7 @@ public class TerrainGen : MonoBehaviour
     public void Regenerate()
     {
         BeforeRegenerateChunks?.Invoke();
+        InvalidateStaleModelResolutionRequirement();
         StopGeneration();
         ClearChunks();
 
@@ -137,6 +199,35 @@ public class TerrainGen : MonoBehaviour
         generationTimer.Reset();
         IsGenerating = true;
         generationCoroutine = StartCoroutine(Generate(numberOfGeneration));
+    }
+
+    private void InvalidateStaleModelResolutionRequirement()
+    {
+        if (modelResolutionRequirement < 1)
+        {
+            return;
+        }
+
+        string selectedModelPath = generatorType == GeneratorType.BPGenerator ? bpModelPath
+            : generatorType == GeneratorType.ModelErosion ? erosionModelPath
+            : null;
+        if (modelResolutionGenerator != generatorType ||
+            !string.Equals(modelResolutionPath, selectedModelPath, StringComparison.Ordinal))
+        {
+            ClearModelResolutionRequirement();
+        }
+    }
+
+    private void ClearModelResolutionRequirement()
+    {
+        if (modelResolutionRequirement < 1)
+        {
+            return;
+        }
+
+        modelResolutionRequirement = 0;
+        modelResolutionPath = null;
+        ModelResolutionRequirementChanged?.Invoke(0);
     }
 
     private void StopGeneration()
@@ -188,6 +279,7 @@ public class TerrainGen : MonoBehaviour
         float generationScale = scale;
         GameObject generationChunkObject = chunkObject;
         GeneratorType generationType = generatorType;
+        bool generationUsesBlender = useBlender;
         HeightmapGenAPI.CommonSettings commonSettings = new HeightmapGenAPI.CommonSettings
         {
             seed = seed,
@@ -214,8 +306,10 @@ public class TerrainGen : MonoBehaviour
             initialWaterVolume = initialWaterVolume
         };
 
-        string resolvedBPModelPath = ResolveModelPath(bpModelPath);
-        string resolvedErosionModelPath = ResolveModelPath(erosionModelPath);
+        string generationBPModelPath = bpModelPath;
+        string generationErosionModelPath = erosionModelPath;
+        string resolvedBPModelPath = ResolveModelPath(generationBPModelPath);
+        string resolvedErosionModelPath = ResolveModelPath(generationErosionModelPath);
         HeightmapGenAPI.BPGeneratorSettings bpSettings = new HeightmapGenAPI.BPGeneratorSettings
         {
             modelPath = resolvedBPModelPath
@@ -223,6 +317,11 @@ public class TerrainGen : MonoBehaviour
         HeightmapGenAPI.ModelErosionSettings modelErosionSettings = new HeightmapGenAPI.ModelErosionSettings
         {
             modelPath = resolvedErosionModelPath
+        };
+        HeightmapGenAPI.BlenderSettings blenderSettings = new HeightmapGenAPI.BlenderSettings
+        {
+            blendingRadius = blendingRadius,
+            edgeSamplingRadius = edgeSamplingRadius
         };
 
         int generationWorkerCount = workerAmount;
@@ -244,6 +343,7 @@ public class TerrainGen : MonoBehaviour
             if (generationType == GeneratorType.BPGenerator &&
                 (resolvedBPModelPath == null || !File.Exists(resolvedBPModelPath)))
             {
+                ClearModelResolutionRequirement();
                 Debug.LogError($"BP Generator ONNX model not found: {resolvedBPModelPath ?? "(empty path)"}");
                 yield break;
             }
@@ -251,14 +351,67 @@ public class TerrainGen : MonoBehaviour
             if (generationType == GeneratorType.ModelErosion &&
                 (resolvedErosionModelPath == null || !File.Exists(resolvedErosionModelPath)))
             {
+                ClearModelResolutionRequirement();
                 Debug.LogError($"Model erosion ONNX model not found: {resolvedErosionModelPath ?? "(empty path)"}");
                 yield break;
+            }
+
+            string selectedModelPath = generationType == GeneratorType.BPGenerator ? resolvedBPModelPath
+                : generationType == GeneratorType.ModelErosion ? resolvedErosionModelPath
+                : null;
+            if (selectedModelPath != null)
+            {
+                Task<HeightmapGenAPI.GeneratorRequirements> requirementsQuery =
+                    TerrainGenerationSession.QueryModelRequirementsAsync(selectedModelPath);
+                while (!requirementsQuery.IsCompleted)
+                {
+                    yield return null;
+                }
+
+                HeightmapGenAPI.GeneratorRequirements requirements = default;
+                Exception requirementsError = null;
+                try
+                {
+                    requirements = requirementsQuery.GetAwaiter().GetResult();
+                }
+                catch (Exception exception)
+                {
+                    requirementsError = exception;
+                }
+                if (requirementsError != null)
+                {
+                    ClearModelResolutionRequirement();
+                    Debug.LogException(requirementsError);
+                    yield break;
+                }
+
+                string rawModelPath = generationType == GeneratorType.BPGenerator
+                    ? generationBPModelPath
+                    : generationErosionModelPath;
+                bool requirementChanged = modelResolutionRequirement != requirements.resolution ||
+                                          modelResolutionGenerator != generationType ||
+                                          !string.Equals(modelResolutionPath, rawModelPath, StringComparison.Ordinal);
+                bool resolutionChanged = resolution != requirements.resolution;
+                modelResolutionGenerator = generationType;
+                modelResolutionPath = rawModelPath;
+                modelResolutionRequirement = requirements.resolution;
+
+                if (resolutionChanged)
+                {
+                    resolution = requirements.resolution;
+                    commonSettings.resolution = requirements.resolution;
+                }
+                if (requirementChanged || resolutionChanged)
+                {
+                    ModelResolutionRequirementChanged?.Invoke(requirements.resolution);
+                }
             }
 
             try
             {
                 generationSession = new TerrainGenerationSession(generationType, commonSettings, erosionSettings,
-                    bpSettings, modelErosionSettings, generationChunkCount.x, generationChunkCount.y,
+                    bpSettings, modelErosionSettings, generationUsesBlender, blenderSettings,
+                    generationChunkCount.x, generationChunkCount.y,
                     generationWorkerCount);
             }
             catch (Exception exception)

@@ -20,8 +20,10 @@ public static class HeightmapGenAPI
         public float evaporateSpeed, gravity, initialSpeed, initialWaterVolume;
         public IntPtr baseGeneratorImpl;
     }
+    public struct BlenderSettings { public int blendingRadius, edgeSamplingRadius; public IntPtr baseGeneratorImpl; }
     public struct BPGeneratorSettings { public string modelPath; }
     public struct ModelErosionSettings { public IntPtr baseGeneratorImpl; public string modelPath; }
+    public struct GeneratorRequirements { public int resolution; }
     sealed class Context
     {
         public int Workers;
@@ -76,6 +78,12 @@ public static class HeightmapGenAPI
     public static IntPtr createBrownianPerlinGenerator(IntPtr context, CommonSettings settings) => createPerlinGenerator(context, settings);
     public static IntPtr createBPGenerator(IntPtr context, CommonSettings settings, BPGeneratorSettings bp) =>
         createPerlinGenerator(context, settings);
+    public static bool queryModelRequirements(IntPtr context, string modelPath, out GeneratorRequirements requirements)
+    {
+        Entry();
+        requirements = new GeneratorRequirements { resolution = 8 };
+        return contexts.ContainsKey(context) && !string.IsNullOrWhiteSpace(modelPath);
+    }
     public static IntPtr createModelErosionGenerator(IntPtr context, CommonSettings settings, ModelErosionSettings modelErosion)
     {
         Check.That(generators.ContainsKey(modelErosion.baseGeneratorImpl), "model erosion base missing");
@@ -89,6 +97,17 @@ public static class HeightmapGenAPI
         Volatile.Write(ref lastErosionPadding, erosion.padding);
         var id = createPerlinGenerator(context, settings);
         if (id != IntPtr.Zero) generators[id].Base = erosion.baseGeneratorImpl;
+        return id;
+    }
+    public static IntPtr createBlenderGenerator(IntPtr context, CommonSettings settings, BlenderSettings blender)
+    {
+        Check.That(generators.ContainsKey(blender.baseGeneratorImpl), "blender base missing");
+        var baseGenerator = generators[blender.baseGeneratorImpl];
+        Check.That(baseGenerator.Settings.resolution == settings.resolution, "blender base resolution mismatch");
+        Check.That(blender.blendingRadius > 0 && blender.blendingRadius * 2 <= settings.resolution, "blender radius invalid");
+        Check.That(blender.edgeSamplingRadius > 0 && blender.edgeSamplingRadius <= settings.resolution, "blender sampling radius invalid");
+        var id = createPerlinGenerator(context, settings);
+        if (id != IntPtr.Zero) generators[id].Base = blender.baseGeneratorImpl;
         return id;
     }
     static float[] Compute(Generator generator, int x, int y)

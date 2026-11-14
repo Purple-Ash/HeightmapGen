@@ -57,7 +57,15 @@ float GeneratorImpl::getPoint(Vec2Int pos, bool forceSingleThreaded) {
 	return getHeight(pos);
 }
 
-void GeneratorImpl::runChunkJob(Vec2Int pos, std::shared_ptr<ChunkData> chunk) {
+void GeneratorImpl::runChunkJob(Vec2Int pos, std::shared_ptr<ChunkData> chunk, bool alreadyStarted) {
+	if (!alreadyStarted) {
+		std::lock_guard lock(dataMutex);
+		if (chunk->started) {
+			return;
+		}
+		chunk->started = true;
+	}
+
 	std::vector<float> generated(settings.resolution * settings.resolution);
 	if (!drain.load(std::memory_order_relaxed)) {
 		generateChunkData(pos, generated.data());
@@ -75,29 +83,36 @@ std::shared_ptr<GeneratorImpl::ChunkData> GeneratorImpl::requestChunkImpl(Vec2In
 	if (!settings.cacheable) return nullptr;
 
 	std::shared_ptr<ChunkData> chunk;
+	bool tookOverPendingJob = false;
 	{
 		std::lock_guard lock(dataMutex);
 		auto it = cache.find(pos);
-		// If the chunk is already in the cache but is not ready and we are forcing single-threaded execution,
-		// we overwrite the existing chunk with a new one to ensure that the chunk is generated in the current thread.
-		// This prevents potential deadlocks when the pool is full with HEG jobs.
-		// TODO: Cancel the existing job instead of overwriting it, if it has not started yet.
-		if (it != cache.end() && (it->second->ready || !forceSingleThreaded)) {
+		if (it != cache.end() && (it->second->ready || !forceSingleThreaded || it->second->started)) {
 			return it->second;
 		}
-		chunk = std::make_shared<ChunkData>();
-		cache[pos] = chunk;
-		jobsInProgress++;
+		if (it != cache.end() && !it->second->started) {
+			// Take over the queued job so it can run in this thread without leaving waiters on the old chunk.
+			chunk = it->second;
+			chunk->started = true;
+			tookOverPendingJob = true;
+		} else {
+			chunk = std::make_shared<ChunkData>();
+			cache[pos] = chunk;
+			jobsInProgress++;
+		}
 	}
 
-	if (context->numThreads() > 0 && !forceSingleThreaded) {
+	if (tookOverPendingJob) {
+		runChunkJob(pos, chunk, true);
+	}
+	else if (context->numThreads() > 0 && !forceSingleThreaded) {
 		auto self = shared_from_this();
 		context->enqueue([self, pos, chunk] {
-			self->runChunkJob(pos, chunk);
+			self->runChunkJob(pos, chunk, false);
 		});
 	}
 	else {
-		runChunkJob(pos, chunk);
+		runChunkJob(pos, chunk, false);
 	}
 	return chunk;
 }

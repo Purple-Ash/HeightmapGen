@@ -55,6 +55,14 @@ public static class HeightmapGenAPI
         };
     }
 
+    [StructLayout(LayoutKind.Sequential)]
+    public struct BlenderSettings
+    {
+        public int blendingRadius;
+        public int edgeSamplingRadius;
+        public IntPtr baseGeneratorImpl;
+    }
+
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
     public struct BPGeneratorSettings
     {
@@ -68,6 +76,12 @@ public static class HeightmapGenAPI
         public IntPtr baseGeneratorImpl;
         [MarshalAs(UnmanagedType.LPUTF8Str)]
         public string modelPath;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct GeneratorRequirements
+    {
+        public int resolution;
     }
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
@@ -93,6 +107,14 @@ public static class HeightmapGenAPI
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr createHydraulicErosionGenerator(IntPtr ctx, CommonSettings commonSettings, HydraulicErosionSettings erosionSettings);
+
+    [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr createBlenderGenerator(IntPtr ctx, CommonSettings commonSettings, BlenderSettings blenderSettings);
+
+    [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl, CharSet = CharSet.Ansi)]
+    [return: MarshalAs(UnmanagedType.I1)]
+    public static extern bool queryModelRequirements(IntPtr ctx,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string modelPath, out GeneratorRequirements requirements);
 
     [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
     public static extern void destroyGenerator(IntPtr generator);

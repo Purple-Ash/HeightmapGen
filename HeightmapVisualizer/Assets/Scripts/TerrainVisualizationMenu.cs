@@ -160,6 +160,14 @@ public sealed class TerrainVisualizationMenu : MonoBehaviour
         }
     }
 
+    public void SetMenuVisible(bool visible)
+    {
+        if (canvasObject != null)
+        {
+            canvasObject.SetActive(visible);
+        }
+    }
+
     private static RectTransform CreateRect(string name, Transform parent)
     {
         RectTransform rect = new GameObject(name, typeof(RectTransform)).GetComponent<RectTransform>();

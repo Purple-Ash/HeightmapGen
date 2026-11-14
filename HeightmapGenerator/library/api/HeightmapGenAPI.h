@@ -51,9 +51,13 @@ struct ModelErosionSettings {
 
 struct BlenderSettings 
 {
-    int32_t blendingRadius; // over how many points inward from the edge is the terrain blended
-    int32_t edgeSamplingRadius; // how many points inward from the edge are used to calculate new edge height
+    int32_t blendingRadius = 10; // over how many points inward from the edge is the terrain blended
+    int32_t edgeSamplingRadius = 4; // how many points inward from the edge are used to calculate new edge height
 	Generator baseGeneratorImpl = nullptr;
+};
+
+struct GeneratorRequirements {
+	int32_t resolution = 0;
 };
 
 extern "C" {
@@ -79,6 +83,9 @@ extern "C" {
 	HG_API void requestPoint(Generator generator, int32_t x, int32_t y);
 	HG_API bool probeChunk(Generator generator, int32_t x, int32_t y, float* buffer);
 	HG_API bool probePoint(Generator generator, int32_t x, int32_t y, float* point);
+
+	HG_API void getCommonSettings(Generator generator, CommonSettings* outSettings);
+	HG_API bool queryModelRequirements(Context ctx, const char* modelPath, GeneratorRequirements* outRequirements);
 
 	HG_API void cleanChunkFromCache(Generator generator, int32_t x, int32_t y);
 	HG_API void clearAllCache(Generator generator);

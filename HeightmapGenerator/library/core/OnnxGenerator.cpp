@@ -44,6 +44,18 @@ OnnxGeneratorImpl::OnnxGeneratorImpl(ContextImpl* ctx, const CommonSettings& com
 	ioBinding.BindInput(inputLayerName.get(), inputValue);
 }
 
+bool OnnxGeneratorImpl::queryModelRequirements(const char* modelPath, GeneratorRequirements* outRequirements) {
+	try {
+		Ort::Session session(runtimeEnvironment(), std::filesystem::u8path(modelPath).c_str(), makeSessionOptions());
+		const auto outputShape = session.GetOutputTypeInfo(0).GetTensorTypeAndShapeInfo().GetShape();
+		outRequirements->resolution = static_cast<int32_t>(outputShape[2]);
+		return true;
+	}
+	catch (...) {
+		return false;
+	}
+}
+
 void OnnxGeneratorImpl::generateChunkData(Vec2Int chunkPos, float* buffer) {
 	std::lock_guard lock(inferenceMutex);
 	fillInput(chunkPos);
