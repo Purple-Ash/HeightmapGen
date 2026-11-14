@@ -144,6 +144,8 @@ protected:
 
 public:
     OnnxGeneratorImpl(ContextImpl* ctx, const CommonSettings& commonSettings, const char* modelPath);
+
+	static bool queryModelRequirements(const char* modelPath, GeneratorRequirements* outRequirements);
 };
 
 /// @brief Neural-network powered terrain generator, adapted from "A step towards procedural terrain generation with GANs" 2017 Beckham, Pal

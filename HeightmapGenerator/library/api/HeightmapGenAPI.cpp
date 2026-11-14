@@ -119,6 +119,17 @@ HG_API bool probePoint(Generator generator, int32_t x, int32_t y, float* point) 
 	return generator ? generator->probePoint({ x, y }, point) : false;
 }
 
+HG_API void getCommonSettings(Generator generator, CommonSettings* outSettings) {
+	if (generator && outSettings) *outSettings = generator->getSettings();
+}
+
+HG_API bool queryModelRequirements(Context ctx, const char* modelPath, GeneratorRequirements* outRequirements) {
+	if (ctx && modelPath && outRequirements) {
+		return OnnxGeneratorImpl::queryModelRequirements(modelPath, outRequirements);
+	}
+	return false;
+}
+
 HG_API void cleanChunkFromCache(Generator generator, int32_t x, int32_t y) {
 	if (generator) generator->cleanChunkFromCache({ x, y });
 }
