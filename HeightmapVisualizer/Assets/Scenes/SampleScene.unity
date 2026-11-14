@@ -580,7 +580,7 @@ MonoBehaviour:
   workerAmount: 8
   bpModelPath: best_step6126.onnx
   erosionModelPath: erosion_model.onnx
-  useBlender: 1
+  useBlender: 0
   blendingRadius: 10
   edgeSamplingRadius: 4
   erosionSeed: 0

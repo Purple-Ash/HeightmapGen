@@ -100,7 +100,7 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
         BuildPanel();
         RefreshPanelSize();
         terrain.BeforeRegenerateChunks += ApplySettings;
-        terrain.ResolutionAdjusted += OnResolutionAdjusted;
+        terrain.ModelResolutionRequirementChanged += OnModelResolutionRequirementChanged;
     }
 
     private void OnDestroy()
@@ -109,7 +109,7 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
         if (terrain != null)
         {
             terrain.BeforeRegenerateChunks -= ApplySettings;
-            terrain.ResolutionAdjusted -= OnResolutionAdjusted;
+            terrain.ModelResolutionRequirementChanged -= OnModelResolutionRequirementChanged;
         }
     }
 
@@ -441,11 +441,18 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
         RefreshPanelSize();
     }
 
-    private void OnResolutionAdjusted(int requiredResolution)
+    private void OnModelResolutionRequirementChanged(int requiredResolution)
     {
-        FieldInfo resolutionField = typeof(TerrainGen).GetField("resolution",
-            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
-        RebuildFieldControls(resolutionField, requiredResolution);
+        if (requiredResolution > 0)
+        {
+            FieldInfo resolutionField = typeof(TerrainGen).GetField("resolution",
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+            RebuildFieldControls(resolutionField, requiredResolution);
+        }
+        else
+        {
+            RebuildFieldControls();
+        }
     }
 
     private static bool IsRuntimeEditable(FieldInfo field)
@@ -545,6 +552,25 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
         InputField input = CreateInputField(row, FormatValue(draftSettings[field]), "Value");
         SetFlexibleWidth(input.GetComponent<RectTransform>(), 1f);
 
+        int requiredResolution = 0;
+        bool resolutionLocked = field.Name == "resolution" &&
+                                TryGetSelectedModelResolutionRequirement(out requiredResolution);
+        if (resolutionLocked)
+        {
+            input.interactable = false;
+            input.textComponent.color = MutedTextColor;
+            if (input.targetGraphic is Image inputBackground)
+            {
+                inputBackground.color = new Color(FieldColor.r * 0.75f, FieldColor.g * 0.75f,
+                    FieldColor.b * 0.75f, FieldColor.a);
+            }
+
+            Text hint = CreateText("Model Resolution Hint", content,
+                "Resolution fixed by selected model: " + requiredResolution + " × " + requiredResolution,
+                11, MutedTextColor, TextAnchor.MiddleRight);
+            SetPreferredHeight(hint.rectTransform, 18f);
+        }
+
         Action commit = () =>
         {
             if (TryParseValue(input.text, field.FieldType, out object parsedValue))
@@ -559,8 +585,35 @@ public sealed class TerrainRuntimeSettingsUI : MonoBehaviour
             }
         };
 
-        input.onEndEdit.AddListener(_ => commit());
+        input.onEndEdit.AddListener(_ =>
+        {
+            commit();
+            if (field.Name == "bpModelPath" || field.Name == "erosionModelPath")
+            {
+                RebuildFieldControls();
+            }
+        });
         pendingInputCommits.Add(commit);
+    }
+
+    private bool TryGetSelectedModelResolutionRequirement(out int requiredResolution)
+    {
+        requiredResolution = 0;
+        FieldInfo generatorField = typeof(TerrainGen).GetField("generatorType",
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        TerrainGen.GeneratorType generator = (TerrainGen.GeneratorType)draftSettings[generatorField];
+        string pathFieldName = generator == TerrainGen.GeneratorType.BPGenerator ? "bpModelPath"
+            : generator == TerrainGen.GeneratorType.ModelErosion ? "erosionModelPath"
+            : null;
+        if (pathFieldName == null)
+        {
+            return false;
+        }
+
+        FieldInfo pathField = typeof(TerrainGen).GetField(pathFieldName,
+            BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+        string modelPath = draftSettings[pathField] as string;
+        return terrain.TryGetModelResolutionRequirement(generator, modelPath, out requiredResolution);
     }
 
     private void AddVectorControl(FieldInfo field, string[] labels, bool integerValues)

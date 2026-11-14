@@ -108,7 +108,7 @@ public class TerrainGen : MonoBehaviour
     public bool KeyboardShortcutsEnabled { get; set; } = true;
     public event Action BeforeRegenerateChunks;
     public event Action<Chunk> ChunkGenerated;
-    public event Action<int> ResolutionAdjusted;
+    public event Action<int> ModelResolutionRequirementChanged;
     public bool HasHeightStatistics { get; private set; }
     public float HighestHeight { get; private set; }
     public double MaximumSlope { get; private set; }
@@ -132,6 +132,16 @@ public class TerrainGen : MonoBehaviour
     private TerrainGenerationSession generationSession;
     private int numberOfGeneration;
     private bool started;
+    private GeneratorType modelResolutionGenerator;
+    private string modelResolutionPath;
+    private int modelResolutionRequirement;
+
+    public bool TryGetModelResolutionRequirement(GeneratorType type, string modelPath, out int requiredResolution)
+    {
+        requiredResolution = modelResolutionRequirement;
+        return requiredResolution > 0 && modelResolutionGenerator == type &&
+               string.Equals(modelResolutionPath, modelPath, StringComparison.Ordinal);
+    }
 
     private void Awake()
     {
@@ -169,6 +179,7 @@ public class TerrainGen : MonoBehaviour
     public void Regenerate()
     {
         BeforeRegenerateChunks?.Invoke();
+        InvalidateStaleModelResolutionRequirement();
         StopGeneration();
         ClearChunks();
 
@@ -188,6 +199,35 @@ public class TerrainGen : MonoBehaviour
         generationTimer.Reset();
         IsGenerating = true;
         generationCoroutine = StartCoroutine(Generate(numberOfGeneration));
+    }
+
+    private void InvalidateStaleModelResolutionRequirement()
+    {
+        if (modelResolutionRequirement < 1)
+        {
+            return;
+        }
+
+        string selectedModelPath = generatorType == GeneratorType.BPGenerator ? bpModelPath
+            : generatorType == GeneratorType.ModelErosion ? erosionModelPath
+            : null;
+        if (modelResolutionGenerator != generatorType ||
+            !string.Equals(modelResolutionPath, selectedModelPath, StringComparison.Ordinal))
+        {
+            ClearModelResolutionRequirement();
+        }
+    }
+
+    private void ClearModelResolutionRequirement()
+    {
+        if (modelResolutionRequirement < 1)
+        {
+            return;
+        }
+
+        modelResolutionRequirement = 0;
+        modelResolutionPath = null;
+        ModelResolutionRequirementChanged?.Invoke(0);
     }
 
     private void StopGeneration()
@@ -266,8 +306,10 @@ public class TerrainGen : MonoBehaviour
             initialWaterVolume = initialWaterVolume
         };
 
-        string resolvedBPModelPath = ResolveModelPath(bpModelPath);
-        string resolvedErosionModelPath = ResolveModelPath(erosionModelPath);
+        string generationBPModelPath = bpModelPath;
+        string generationErosionModelPath = erosionModelPath;
+        string resolvedBPModelPath = ResolveModelPath(generationBPModelPath);
+        string resolvedErosionModelPath = ResolveModelPath(generationErosionModelPath);
         HeightmapGenAPI.BPGeneratorSettings bpSettings = new HeightmapGenAPI.BPGeneratorSettings
         {
             modelPath = resolvedBPModelPath
@@ -301,6 +343,7 @@ public class TerrainGen : MonoBehaviour
             if (generationType == GeneratorType.BPGenerator &&
                 (resolvedBPModelPath == null || !File.Exists(resolvedBPModelPath)))
             {
+                ClearModelResolutionRequirement();
                 Debug.LogError($"BP Generator ONNX model not found: {resolvedBPModelPath ?? "(empty path)"}");
                 yield break;
             }
@@ -308,6 +351,7 @@ public class TerrainGen : MonoBehaviour
             if (generationType == GeneratorType.ModelErosion &&
                 (resolvedErosionModelPath == null || !File.Exists(resolvedErosionModelPath)))
             {
+                ClearModelResolutionRequirement();
                 Debug.LogError($"Model erosion ONNX model not found: {resolvedErosionModelPath ?? "(empty path)"}");
                 yield break;
             }
@@ -336,15 +380,30 @@ public class TerrainGen : MonoBehaviour
                 }
                 if (requirementsError != null)
                 {
+                    ClearModelResolutionRequirement();
                     Debug.LogException(requirementsError);
                     yield break;
                 }
 
-                if (resolution != requirements.resolution)
+                string rawModelPath = generationType == GeneratorType.BPGenerator
+                    ? generationBPModelPath
+                    : generationErosionModelPath;
+                bool requirementChanged = modelResolutionRequirement != requirements.resolution ||
+                                          modelResolutionGenerator != generationType ||
+                                          !string.Equals(modelResolutionPath, rawModelPath, StringComparison.Ordinal);
+                bool resolutionChanged = resolution != requirements.resolution;
+                modelResolutionGenerator = generationType;
+                modelResolutionPath = rawModelPath;
+                modelResolutionRequirement = requirements.resolution;
+
+                if (resolutionChanged)
                 {
                     resolution = requirements.resolution;
                     commonSettings.resolution = requirements.resolution;
-                    ResolutionAdjusted?.Invoke(requirements.resolution);
+                }
+                if (requirementChanged || resolutionChanged)
+                {
+                    ModelResolutionRequirementChanged?.Invoke(requirements.resolution);
                 }
             }
 
